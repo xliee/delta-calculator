@@ -1,0 +1,796 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Delta Calculator</title>
+    <style>
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        padding: 0;
+        background: linear-gradient(135deg, #2c3e50, #3498db);
+        color: #ecf0f1;
+        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        overflow: hidden;
+      }
+
+      .container {
+        display: flex;
+        height: 100vh;
+      }
+
+      .controls-panel {
+        width: 320px;
+        background: rgba(44, 62, 80, 0.95);
+        padding: 15px;
+        overflow-y: auto;
+        overflow-x: hidden;
+        border-right: 2px solid #34495e;
+        backdrop-filter: blur(10px);
+        box-sizing: border-box;
+        word-wrap: break-word;
+        min-width: 0;
+      }
+
+      .graphics-container {
+        flex: 1;
+        position: relative;
+      }
+
+      h1 {
+        margin: 0 0 15px 0;
+        color: #3498db;
+        font-size: 20px;
+        text-align: center;
+        border-bottom: 2px solid #3498db;
+        padding-bottom: 8px;
+      }
+
+      .section {
+        margin-bottom: 12px;
+        background: rgba(52, 73, 94, 0.3);
+        border-radius: 6px;
+        border: 1px solid rgba(52, 152, 219, 0.3);
+        overflow: hidden;
+        transition: all 0.3s ease;
+      }
+
+      .section.collapsed .section-content {
+        display: none;
+      }
+
+      .section-header {
+        padding: 12px 15px;
+        cursor: pointer;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        background: rgba(52, 73, 94, 0.5);
+        border-bottom: 1px solid rgba(52, 152, 219, 0.2);
+        user-select: none;
+      }
+
+      .section-header:hover {
+        background: rgba(52, 73, 94, 0.7);
+      }
+
+      .section-title {
+        color: #52c4ff;
+        font-size: 14px;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        margin: 0;
+      }
+
+      .section-toggle {
+        color: #bdc3c7;
+        font-size: 18px;
+        transition: transform 0.3s ease;
+      }
+
+      .section.collapsed .section-toggle {
+        transform: rotate(-90deg);
+      }
+
+      .section-content {
+        padding: 12px 15px;
+      }
+
+      .tooltip {
+        position: relative;
+        display: inline-block;
+        cursor: help;
+      }
+
+      .tooltip .tooltiptext {
+        visibility: hidden;
+        width: 220px;
+        background-color: #2c3e50;
+        color: #ecf0f1;
+        text-align: left;
+        border-radius: 5px;
+        padding: 6px 10px;
+        position: fixed;
+        z-index: 9999;
+        bottom: auto;
+        left: auto;
+        opacity: 0;
+        transition: opacity 0.3s;
+        border: 1px solid #52c4ff;
+        font-size: 11px;
+        line-height: 1.3;
+        box-shadow: 0 3px 6px rgba(0,0,0,0.3);
+        pointer-events: none;
+        max-width: 220px;
+        word-wrap: break-word;
+      }
+
+      .tooltip .tooltiptext::after {
+        content: "";
+        position: absolute;
+        top: 100%;
+        left: 50%;
+        margin-left: -5px;
+        border-width: 5px;
+        border-style: solid;
+        border-color: #52c4ff transparent transparent transparent;
+      }
+
+      .tooltip:hover .tooltiptext {
+        visibility: visible;
+        opacity: 1;
+      }
+
+      .info-icon {
+        color: #52c4ff;
+        font-size: 12px;
+        margin-left: 4px;
+        cursor: help;
+      }
+
+      .floating-stats {
+        position: fixed;
+        top: 20px;
+        right: 20px;
+        background: rgba(44, 62, 80, 0.9);
+        border: 1px solid rgba(52, 152, 219, 0.5);
+        border-radius: 8px;
+        padding: 15px;
+        color: #ecf0f1;
+        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        font-size: 12px;
+        z-index: 1000;
+        min-width: 200px;
+        backdrop-filter: blur(10px);
+        box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+      }
+
+      .floating-stats h4 {
+        margin: 0 0 10px 0;
+        color: #52c4ff;
+        font-size: 14px;
+        text-transform: uppercase;
+        letter-spacing: 1px;
+        border-bottom: 1px solid rgba(52, 152, 219, 0.3);
+        padding-bottom: 5px;
+      }
+
+      .floating-stats .stat-item {
+        display: flex;
+        justify-content: space-between;
+        margin: 5px 0;
+        padding: 2px 0;
+      }
+
+      .floating-stats .stat-label {
+        color: #bdc3c7;
+      }
+
+      .floating-stats .stat-value {
+        color: #52c4ff;
+        font-weight: bold;
+      }
+
+      .control-group {
+        margin-bottom: 12px;
+      }
+
+      .control-group label {
+        display: block;
+        margin-bottom: 4px;
+        color: #bdc3c7;
+        font-weight: 500;
+        font-size: 13px;
+        line-height: 1.3;
+      }
+
+      .marlin-indicator {
+        color: #e74c3c;
+        font-weight: bold;
+        margin-left: 2px;
+        text-shadow: 0 0 3px rgba(231, 76, 60, 0.5);
+      }
+
+      .slider-container {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        max-width: 100%;
+        box-sizing: border-box;
+      }
+
+      .slider {
+        flex: 1;
+        height: 6px;
+        border-radius: 3px;
+        background: #34495e;
+        outline: none;
+        -webkit-appearance: none;
+        appearance: none;
+        transition: all 0.3s ease;
+      }
+
+      .slider::-webkit-slider-thumb {
+        -webkit-appearance: none;
+        appearance: none;
+        width: 18px;
+        height: 18px;
+        border-radius: 50%;
+        background: #3498db;
+        cursor: pointer;
+        box-shadow: 0 2px 6px rgba(52, 152, 219, 0.4);
+        transition: all 0.3s ease;
+      }
+
+      .slider::-webkit-slider-thumb:hover {
+        background: #2980b9;
+        transform: scale(1.1);
+        box-shadow: 0 4px 12px rgba(52, 152, 219, 0.6);
+      }
+
+      .slider::-moz-range-thumb {
+        width: 18px;
+        height: 18px;
+        border-radius: 50%;
+        background: #3498db;
+        cursor: pointer;
+        border: none;
+        box-shadow: 0 2px 6px rgba(52, 152, 219, 0.4);
+      }
+
+      .value-input {
+        width: 70px;
+        padding: 5px 6px;
+        border: 1px solid #34495e;
+        border-radius: 3px;
+        background: rgba(52, 73, 94, 0.8);
+        color: #ecf0f1;
+        font-size: 11px;
+        text-align: center;
+        box-sizing: border-box;
+      }
+
+      .value-input:focus {
+        outline: none;
+        border-color: #3498db;
+        box-shadow: 0 0 0 2px rgba(52, 152, 219, 0.2);
+      }
+
+      .unit {
+        color: #95a5a6;
+        font-size: 11px;
+        min-width: 22px;
+      }
+
+      .info-display {
+        background: rgba(39, 174, 96, 0.2);
+        border: 1px solid rgba(39, 174, 96, 0.4);
+        padding: 10px;
+        border-radius: 6px;
+        font-family: 'Courier New', monospace;
+        font-size: 12px;
+        line-height: 1.4;
+      }
+
+      .info-display .label {
+        color: #52c4ff;
+        font-weight: bold;
+      }
+
+      .info-display .value {
+        color: #fff;
+      }
+
+      .button-group {
+        display: flex;
+        gap: 10px;
+        flex-wrap: wrap;
+      }
+
+      .btn {
+        padding: 8px 16px;
+        border: none;
+        border-radius: 4px;
+        background: #3498db;
+        color: white;
+        cursor: pointer;
+        font-size: 12px;
+        font-weight: 500;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        transition: all 0.3s ease;
+      }
+
+      .btn:hover {
+        background: #2980b9;
+        transform: translateY(-1px);
+        box-shadow: 0 4px 8px rgba(52, 152, 219, 0.3);
+      }
+
+      .btn.secondary {
+        background: #95a5a6;
+      }
+
+      .btn.secondary:hover {
+        background: #7f8c8d;
+      }
+
+      .btn.danger {
+        background: #e74c3c;
+      }
+
+      .btn.danger:hover {
+        background: #c0392b;
+      }
+
+      .keyboard-help {
+        font-size: 11px;
+        color: #7f8c8d;
+        margin-top: 10px;
+        padding: 8px;
+        background: rgba(127, 140, 141, 0.1);
+        border-radius: 4px;
+      }
+
+      .keyboard-help strong {
+        color: #52c4ff;
+      }
+
+      .preset-buttons {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 8px;
+        margin-top: 10px;
+      }
+
+      .preset-btn {
+        padding: 6px 10px;
+        font-size: 11px;
+        background: #34495e;
+        border: 1px solid #52c4ff;
+        color: #52c4ff;
+      }
+
+      .preset-btn:hover {
+        background: #52c4ff;
+        color: #2c3e50;
+      }
+
+      .radio-group {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        margin-top: 5px;
+      }
+
+      .radio-label {
+        display: flex;
+        align-items: center;
+        cursor: pointer;
+        font-size: 14px;
+        color: #bdc3c7;
+      }
+
+      .radio-label input[type="radio"] {
+        margin-right: 8px;
+        accent-color: #3498db;
+      }
+
+      .radio-text {
+        user-select: none;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <div class="controls-panel">
+        <h1>Delta Calculator</h1>
+
+        <!-- Actions -->
+        <div class="section" id="actions-section">
+          <div class="section-header" onclick="toggleSection('actions-section')">
+            <h3 class="section-title">Actions</h3>
+            <span class="section-toggle">▼</span>
+          </div>
+          <div class="section-content">
+            <div class="button-group">
+              <button class="btn" id="home-effector">Home</button>
+              <button class="btn secondary" id="randomize">Randomize</button>
+              <button class="btn danger" id="reset-view">Reset View</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Frame Geometry -->
+        <div class="section" id="frame-geometry-section">
+          <div class="section-header" onclick="toggleSection('frame-geometry-section')">
+            <h3 class="section-title">Frame Geometry</h3>
+            <span class="section-toggle">▼</span>
+          </div>
+          <div class="section-content">
+            <div class="control-group">
+              <label for="bot-radius-slider">
+                Bot Radius <span class="marlin-indicator">*</span>
+                <span class="tooltip info-icon">ℹ
+                  <span class="tooltiptext">Distance from the center of the build area to each tower. Larger radius increases build volume but requires more space.<br><br><strong style="color: #e74c3c;">* Marlin Config:</strong><br><code style="color: #52c4ff;">DELTA_SMOOTH_ROD_OFFSET</code></span>
+                </span>
+              </label>
+              <div class="slider-container">
+                <input type="range" id="bot-radius-slider" class="slider" min="50" max="500" value="240" step="5">
+                <input type="number" id="bot-radius-input" class="value-input" min="50" max="500" value="240" step="5">
+                <span class="unit">mm</span>
+              </div>
+            </div>
+
+            <div class="control-group">
+              <label for="bot-height-slider">
+                Bot Height
+                <span class="tooltip info-icon">ℹ
+                  <span class="tooltiptext">Maximum height of the delta robot towers. This determines the maximum Z-axis travel and build volume height.</span>
+                </span>
+              </label>
+              <div class="slider-container">
+                <input type="range" id="bot-height-slider" class="slider" min="200" max="1000" value="700" step="10">
+                <input type="number" id="bot-height-input" class="value-input" min="200" max="1000" value="700" step="10">
+                <span class="unit">mm</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Rod Configuration -->
+        <div class="section" id="rod-config-section">
+          <div class="section-header" onclick="toggleSection('rod-config-section')">
+            <h3 class="section-title">Rod Configuration</h3>
+            <span class="section-toggle">▼</span>
+          </div>
+          <div class="section-content">
+            <div class="control-group">
+              <label for="rod-spacing-slider">
+                Rod Spacing
+                <span class="tooltip info-icon">ℹ
+                  <span class="tooltiptext">Distance between the rod attachment points. This affects the mechanical advantage and precision of the delta system.</span>
+                </span>
+              </label>
+              <div class="slider-container">
+                <input type="range" id="rod-spacing-slider" class="slider" min="20" max="100" value="30" step="2">
+                <input type="number" id="rod-spacing-input" class="value-input" min="20" max="100" value="30" step="2">
+                <span class="unit">mm</span>
+              </div>
+            </div>
+
+            <div class="control-group">
+              <label for="rod-radius-slider">
+                Rod Radius
+                <span class="tooltip info-icon">ℹ
+                  <span class="tooltiptext">Thickness of the diagonal rods. Thicker rods provide more rigidity but add weight to the moving parts.</span>
+                </span>
+              </label>
+              <div class="slider-container">
+                <input type="range" id="rod-radius-slider" class="slider" min="2" max="10" value="4" step="0.5">
+                <input type="number" id="rod-radius-input" class="value-input" min="2" max="10" value="4" step="0.5">
+                <span class="unit">mm</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Carriage & Arms -->
+        <div class="section" id="carriage-arms-section">
+          <div class="section-header" onclick="toggleSection('carriage-arms-section')">
+            <h3 class="section-title">Carriage & Arms</h3>
+            <span class="section-toggle">▼</span>
+          </div>
+          <div class="section-content">
+            <div class="control-group">
+              <label for="carriage-inset-slider">
+                Carriage Inset <span class="marlin-indicator">*</span>
+                <span class="tooltip info-icon">ℹ
+                  <span class="tooltiptext">Distance from the tower edge to the carriage center. Affects the range of motion and stability.<br><br><strong style="color: #e74c3c;">* Marlin Config:</strong><br><code style="color: #52c4ff;">DELTA_CARRIAGE_OFFSET</code></span>
+                </span>
+              </label>
+              <div class="slider-container">
+                <input type="range" id="carriage-inset-slider" class="slider" min="10" max="50" value="25" step="1">
+                <input type="number" id="carriage-inset-input" class="value-input" min="10" max="50" value="25" step="1">
+                <span class="unit">mm</span>
+              </div>
+            </div>
+
+            <div class="control-group">
+              <label for="carriage-height-slider">
+                Carriage Height
+                <span class="tooltip info-icon">ℹ
+                  <span class="tooltiptext">Vertical size of the carriage that moves up and down the towers.</span>
+                </span>
+              </label>
+              <div class="slider-container">
+                <input type="range" id="carriage-height-slider" class="slider" min="15" max="60" value="30" step="1">
+                <input type="number" id="carriage-height-input" class="value-input" min="15" max="60" value="30" step="1">
+                <span class="unit">mm</span>
+              </div>
+            </div>
+
+            <div class="control-group">
+              <label for="carriage-offset-slider">
+                Carriage Ball Joint Offset <span class="marlin-indicator">*</span>
+                <span class="tooltip info-icon">ℹ
+                  <span class="tooltiptext">Perpendicular offset of the ball joints from the carriage plane. Accounts for the physical offset when ball joints are not perfectly aligned with the carriage center.<br><br><strong style="color: #e74c3c;">* Affects Kinematics:</strong><br>This offset changes the effective attachment points for diagonal rods.</span>
+                </span>
+              </label>
+              <div class="slider-container">
+                <input type="range" id="carriage-offset-slider" class="slider" min="0" max="20" value="0" step="0.5">
+                <input type="number" id="carriage-offset-input" class="value-input" min="0" max="20" value="0" step="0.5">
+                <span class="unit">mm</span>
+              </div>
+            </div>
+
+            <div class="control-group">
+              <label for="arm-radius-slider">
+                Arm Radius
+                <span class="tooltip info-icon">ℹ
+                  <span class="tooltiptext">Thickness of the diagonal arms connecting carriages to the effector.</span>
+                </span>
+              </label>
+              <div class="slider-container">
+                <input type="range" id="arm-radius-slider" class="slider" min="1" max="10" value="2.5" step="0.1">
+                <input type="number" id="arm-radius-input" class="value-input" min="1" max="10" value="2.5" step="0.1">
+                <span class="unit">mm</span>
+              </div>
+            </div>
+
+            <div class="control-group">
+              <label for="diagonal-rod-slider">
+                Diagonal Rod Length <span class="marlin-indicator">*</span>
+                <span class="tooltip info-icon">ℹ
+                  <span class="tooltiptext">Length of the diagonal rods connecting the carriages to the effector. Longer rods provide more reach but may introduce flex.<br><br><strong style="color: #e74c3c;">* Marlin Config:</strong><br><code style="color: #52c4ff;">DELTA_DIAGONAL_ROD</code></span>
+                </span>
+              </label>
+              <div class="slider-container">
+                <input type="range" id="diagonal-rod-slider" class="slider" min="150" max="400" value="240" step="5">
+                <input type="number" id="diagonal-rod-input" class="value-input" min="150" max="400" value="240" step="5">
+                <span class="unit">mm</span>
+              </div>
+            </div>
+
+            <div class="control-group">
+              <label for="tower-offset-slider">
+                Tower Center Offset
+                <span class="tooltip info-icon">ℹ
+                  <span class="tooltiptext">Offset from the perfect center position for tower placement. Can help with mechanical clearances.</span>
+                </span>
+              </label>
+              <div class="slider-container">
+                <input type="range" id="tower-offset-slider" class="slider" min="0" max="50" value="25" step="1">
+                <input type="number" id="tower-offset-input" class="value-input" min="0" max="50" value="25" step="1">
+                <span class="unit">mm</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Effector Configuration -->
+        <div class="section" id="effector-config-section">
+          <div class="section-header" onclick="toggleSection('effector-config-section')">
+            <h3 class="section-title">Effector Configuration</h3>
+            <span class="section-toggle">▼</span>
+          </div>
+          <div class="section-content">
+            <div class="control-group">
+              <label for="effector-type">
+                Effector Type
+                <span class="tooltip info-icon">ℹ
+                  <span class="tooltiptext">Choose the effector type that matches your 3D printer setup. Different effectors have varying mounting geometries and capabilities.</span>
+                </span>
+              </label>
+              <select id="effector-type" class="value-input" style="width: 100%;">
+                <!-- Options populated dynamically by UIManager -->
+              </select>
+            </div>
+
+            <div class="control-group">
+              <label for="effector-radius-slider">
+                Effector Radius <span class="marlin-indicator">*</span>
+                <span class="tooltip info-icon">ℹ
+                  <span class="tooltiptext">Distance from the center of the effector to the rod attachment points. Larger radius provides more stability but reduces build volume.<br><br><strong style="color: #e74c3c;">* Marlin Config:</strong><br>Influences <code style="color: #52c4ff;">DELTA_PRINTABLE_RADIUS</code> calculation</span>
+                </span>
+              </label>
+              <div class="slider-container">
+                <input type="range" id="effector-radius-slider" class="slider" min="20" max="80" value="40" step="2">
+                <input type="number" id="effector-radius-input" class="value-input" min="20" max="80" value="40" step="2">
+                <span class="unit">mm</span>
+              </div>
+            </div>
+
+            <div class="control-group">
+              <label for="eff-spacing-slider">
+                Effector Spacing <span class="marlin-indicator">*</span>
+                <span class="tooltip info-icon">ℹ
+                  <span class="tooltiptext">Distance between the rod attachment points on the effector. This affects the mechanical advantage and precision of the delta system.<br><br><strong style="color: #e74c3c;">* Marlin Config:</strong><br><code style="color: #52c4ff;">DELTA_EFFECTOR_OFFSET</code></span>
+                </span>
+              </label>
+              <div class="slider-container">
+                <input type="range" id="eff-spacing-slider" class="slider" min="20" max="60" value="30" step="2">
+                <input type="number" id="eff-spacing-input" class="value-input" min="20" max="60" value="30" step="2">
+                <span class="unit">mm</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Build Plate Constraints -->
+        <div class="section" id="build-plate-section">
+          <div class="section-header" onclick="toggleSection('build-plate-section')">
+            <h3 class="section-title">Build Plate Constraints</h3>
+            <span class="section-toggle">▼</span>
+          </div>
+          <div class="section-content">
+            <div class="control-group">
+              <label>
+                Constraint Type
+                <span class="tooltip info-icon">ℹ
+                  <span class="tooltiptext">Choose which physical limitation determines your build volume: effector geometry, bed size, or tower collision boundaries.</span>
+                </span>
+              </label>
+              <div class="radio-group">
+                <label class="radio-label">
+                  <input type="radio" name="bp-constraint" value="effector-edge" checked>
+                  <span class="radio-text">Effector Edge</span>
+                </label>
+                <label class="radio-label">
+                  <input type="radio" name="bp-constraint" value="effector-tip">
+                  <span class="radio-text">Effector Tip</span>
+                </label>
+                <label class="radio-label">
+                  <input type="radio" name="bp-constraint" value="horizontal-extrusions">
+                  <span class="radio-text">Horizontal Extrusions</span>
+                </label>
+              </div>
+            </div>
+
+            <div class="control-group">
+              <label>
+                <input type="checkbox" id="show-physical-bed" checked>
+                Show Physical Bed
+                <span class="tooltip info-icon">ℹ
+                  <span class="tooltiptext">Display the physical build plate boundaries in the 3D view. This is for visualization only and does not affect constraint calculations.</span>
+                </span>
+              </label>
+            </div>
+
+            <div class="control-group">
+              <label for="physical-bed-radius-slider">
+                Physical Bed Radius
+                <span class="tooltip info-icon">ℹ
+                  <span class="tooltiptext">Radius of your physical build plate. This is for visualization only and does not constrain the build volume calculations.</span>
+                </span>
+              </label>
+              <div class="slider-container">
+                <input type="range" id="physical-bed-radius-slider" class="slider" min="50" max="200" value="120" step="5">
+                <input type="number" id="physical-bed-radius-input" class="value-input" min="50" max="200" value="120" step="5">
+                <span class="unit">mm</span>
+              </div>
+            </div>
+
+            <div class="control-group">
+              <label>Build Volume Info:</label>
+              <div class="info-display">
+                <div><span class="label">Physical Bed:</span> <span class="value" id="physical-bed-radius">120mm</span></div>
+                <div><span class="label">Printable Radius:</span> <span class="value" id="calculated-printable-radius">--mm</span></div>
+                <div><span class="label">Constraint Clearance:</span> <span class="value" id="constraint-clearance">--mm</span></div>
+                <div><span class="label">Active Constraint:</span> <span class="value" id="active-constraint">--</span></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Presets -->
+        <div class="section" id="presets-section">
+          <div class="section-header" onclick="toggleSection('presets-section')">
+            <h3 class="section-title">Presets</h3>
+            <span class="section-toggle">▼</span>
+          </div>
+          <div class="section-content">
+            <div class="preset-buttons">
+              <!-- Preset buttons populated dynamically by main.js -->
+            </div>
+          </div>
+        </div>
+
+        <!-- Remove Status and Keyboard sections as they were moved to top -->
+      </div>
+
+      <div class="graphics-container">
+        <div id="graphics"></div>
+      </div>
+    </div>
+
+    <script>
+      // Toggle section functionality
+      function toggleSection(sectionId) {
+        const section = document.getElementById(sectionId);
+        if (section) {
+          section.classList.toggle('collapsed');
+        }
+      }
+
+      // Dynamic tooltip positioning
+      function positionTooltip(tooltip, event) {
+        const tooltipRect = tooltip.getBoundingClientRect();
+        const viewportWidth = window.innerWidth;
+        const viewportHeight = window.innerHeight;
+
+        let x = event.clientX - tooltipRect.width / 2;
+        let y = event.clientY - tooltipRect.height - 10;
+
+        // Keep tooltip within viewport
+        if (x < 10) x = 10;
+        if (x + tooltipRect.width > viewportWidth - 10) {
+          x = viewportWidth - tooltipRect.width - 10;
+        }
+        if (y < 10) {
+          y = event.clientY + 10; // Show below cursor if no space above
+        }
+
+        tooltip.style.left = x + 'px';
+        tooltip.style.top = y + 'px';
+      }
+
+      // Initialize collapsible sections and tooltips
+      document.addEventListener('DOMContentLoaded', function() {
+        // Add click handlers to all section headers
+        const headers = document.querySelectorAll('.section-header');
+        headers.forEach(header => {
+          if (!header.hasAttribute('onclick')) {
+            header.addEventListener('click', function() {
+              const section = this.closest('.section');
+              if (section) {
+                section.classList.toggle('collapsed');
+              }
+            });
+          }
+        });
+
+        // Enhanced tooltip handling
+        const tooltips = document.querySelectorAll('.tooltip');
+        tooltips.forEach(tooltip => {
+          const tooltipText = tooltip.querySelector('.tooltiptext');
+          if (tooltipText) {
+            tooltip.addEventListener('mouseenter', function(e) {
+              positionTooltip(tooltipText, e);
+            });
+
+            tooltip.addEventListener('mousemove', function(e) {
+              positionTooltip(tooltipText, e);
+            });
+          }
+        });
+      });
+    </script>
+
+    <script type="module" src="/main.ts"></script>
+  </body>
+</html>
