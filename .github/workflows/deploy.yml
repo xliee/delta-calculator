@@ -30,11 +30,16 @@ jobs:
 
       - name: Setup Node
         uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
 
       - name: Install dependencies
-        uses: bahmutov/npm-install@v1
+        run: npm ci
 
       - name: Build project
+        env:
+          GITHUB_REPOSITORY: ${{ github.repository }}
         run: npm run build
       - name: Setup Pages
         uses: actions/configure-pages@v5

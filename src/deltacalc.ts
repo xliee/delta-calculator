@@ -479,7 +479,7 @@ export class DeltabotApp {
 
     // Calculate carriage positions using DeltaCalculations
     const carriagePositions = this.deltaCalculations.calculateCarriagePositions(effectorPosition);
-    
+
     // Store carriage Y positions
     this.carriageY = carriagePositions;
 
@@ -518,15 +518,15 @@ export class DeltabotApp {
         // Use GeometryUtils for tower positions
         const towerPos = GeometryUtils.calculateTowerPosition(n / 2, this.bot_radius);
         this.towerpos[n / 2] = new THREE.Vector3(towerPos.x, towerPos.y, towerPos.z);
-        
+
         const effectorNubPos = GeometryUtils.calculateArmPosition(n, er, 0, true);
         this.effector_nub_ctr[n / 2] = new THREE.Vector3(effectorNubPos.x, effectorNubPos.y, effectorNubPos.z);
       }
-      
+
       // Calculate rod positions using GeometryUtils
       const rodPos = GeometryUtils.calculateTowerPosition(Math.floor(n / 2), this.bot_radius);
       this.rodpos[n] = new THREE.Vector3(rodPos.x, rodPos.y, rodPos.z);
-      
+
       const effectorNub = GeometryUtils.calculateArmPosition(n, er, sp, false);
       this.effector_nub[n] = new THREE.Vector3(effectorNub.x, effectorNub.y, effectorNub.z);
     }

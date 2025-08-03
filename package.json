@@ -6,17 +6,21 @@
     "url": "https://github.com/xliee/delta-calculator"
   },
   "type": "module",
+  "engines": {
+    "node": ">=24.0.0"
+  },
   "scripts": {
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview"
   },
   "dependencies": {
-    "three": "^0.179.0"
+    "three": "^0.179.1"
   },
   "devDependencies": {
+    "@types/node": "^24.1.0",
     "@types/three": "^0.178.1",
     "typescript": "^5.9.2",
-    "vite": "^5.4.10"
+    "vite": "^7.0.0"
   }
 }
