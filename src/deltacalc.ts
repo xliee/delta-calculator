@@ -5,6 +5,7 @@ import { UIManager } from "./ui/UIManager.ts";
 import { DeltaCalculations } from "./calculations/DeltaCalculations.ts";
 import { DeltaGeometryManager } from "./geometry/DeltaGeometryManager.ts";
 import { RenderingManager } from "./rendering/RenderingManager.ts";
+import { GeometryUtils } from "./utils/index.ts";
 import { EFFECTOR_CONFIGURATIONS } from "./constants.js";
 import type {
   DeltaRobotConfig,
@@ -451,16 +452,15 @@ export class DeltabotApp {
     ctr?: THREE.Vector3,
     sp?: number
   ): THREE.Vector3 {
-    const c = Math.floor(n / 2) * (this.pi2 / 3) + this.pi2 / 6; // angle to the tower
-    const p = new THREE.Vector3(Math.sin(c) * r, 0, Math.cos(c) * r); // the point on the perimeter
+    // Delegate to GeometryUtils for consistent calculations
     if (ctr === undefined || !ctr) {
-      if (sp === undefined) sp = this.rod_spacing;
-      const sign = n % 2 ? -1 : 1;
-      const perp = c + this.pi2 / 4; // the perpendicular direction
-      const as = (sign * sp) / 2; // half space between arms
-      p.add(new THREE.Vector3(Math.sin(perp) * as, 0, Math.cos(perp) * as));
+      const spacing = sp !== undefined ? sp : this.rod_spacing;
+      const armPos = GeometryUtils.calculateArmPosition(n, r, spacing, false);
+      return new THREE.Vector3(armPos.x, armPos.y, armPos.z);
+    } else {
+      const towerPos = GeometryUtils.calculateTowerPosition(Math.floor(n / 2), r);
+      return new THREE.Vector3(towerPos.x, towerPos.y, towerPos.z);
     }
-    return p;
   }
 
   public rodPosition(n: number, ctr?: THREE.Vector3): THREE.Vector3 {
@@ -470,39 +470,25 @@ export class DeltabotApp {
   public updateCarriagesFromEffector(): void {
     if (!this.effector) return;
 
-    const p = this.effector.position;
-    const al2 = this.arm_length_sq || 0;
+    // Use DeltaCalculations for proper inverse kinematics
+    const effectorPosition = {
+      x: this.effector.position.x,
+      y: this.effector.position.y,
+      z: this.effector.position.z,
+    };
 
-    // Note: In Three.js coordinate system, Y is vertical (up/down)
-    // But for delta robot users, we display Z as vertical for clarity
-    // Internally: carriages move in Y-axis, effector moves in X,Y,Z
-    // Display: X=X, Y=Z_threejs, Z=Y_threejs (vertical)
-    for (var i = 0; i < 3; i++) {
-      var t = this.towerpos[i],
-        pc = p.clone().add(this.effector_nub_ctr[i]);
-
-      // Apply carriage offset to account for ball joint position relative to carriage
-      const carriageOffsetVector =
-        this.geometryManager.calculateCarriageOffsetVector(i);
-      const adjustedTowerPos = t.clone().add(carriageOffsetVector);
-
-      var y =
-        Math.sqrt(
-          al2 -
-            (adjustedTowerPos.x - pc.x) ** 2 -
-            (adjustedTowerPos.z - pc.z) ** 2
-        ) + pc.y;
-      // console.log(pc.y);
-      // Store carriage Y position for geometry manager
-      this.carriageY[i] = y;
-    }
+    // Calculate carriage positions using DeltaCalculations
+    const carriagePositions = this.deltaCalculations.calculateCarriagePositions(effectorPosition);
+    
+    // Store carriage Y positions
+    this.carriageY = carriagePositions;
 
     // Update geometry manager with new carriage and arm positions
     if (this.geometryManager) {
-      this.geometryManager.updateCarriagePositions(this.carriageY);
+      this.geometryManager.updateCarriagePositions(carriagePositions);
       this.geometryManager.updateArmPositions(
         this.effector.position,
-        this.carriageY
+        carriagePositions
       );
     }
   }
@@ -510,77 +496,58 @@ export class DeltabotApp {
   // Original geometry methods removed - now handled by DeltaGeometryManager
 
   public initBotGeometry(): void {
-    var br = this.bot_radius,
-      bh = this.bot_height,
-      ch = this.carriage_height,
-      // al = Math.floor((br - this.carriage_inset) * 1.414);  // maybe?
-      al = br * 2 - this.effector_radius * 2 - this.carriage_inset + ch; // maybe?
-    if (al > bh - ch / 2) al = bh - ch / 2;
+    // Update DeltaCalculations with current configuration
+    const config = this.getCurrentDeltaConfig();
+    this.deltaCalculations.updateConfig(config);
 
-    // precalculate some things
-    this.arm_length = al;
-    this.arm_length_sq = al * al;
-    this.bh2 = bh / 2;
+    // Calculate optimal arm length using DeltaCalculations
+    const optimalArmLength = this.deltaCalculations.calculateOptimalArmLength();
+    this.arm_length = optimalArmLength;
+    this.arm_length_sq = optimalArmLength * optimalArmLength;
+    this.bh2 = this.bot_height / 2;
 
-    this.effector_endstop_z =
-      this.bh2 - this.arm_length - this.carriage_height / 2;
+    // Calculate effector positioning using DeltaCalculations logic
+    this.effector_endstop_z = this.bh2 - this.arm_length - this.carriage_height / 2;
     this.effector_zero_z = -this.bh2 + this.effector_height / 2;
 
+    // Calculate positions using GeometryUtils for consistency
     var er = this.effector_radius,
       sp = this.eff_spacing;
     for (var n = 0; n < 6; n++) {
       if (n % 2 == 0) {
-        this.towerpos[n / 2] = this.rodPosition(n, true as any);
-        this.effector_nub_ctr[n / 2] = this.towerPosition(n, er, true as any);
+        // Use GeometryUtils for tower positions
+        const towerPos = GeometryUtils.calculateTowerPosition(n / 2, this.bot_radius);
+        this.towerpos[n / 2] = new THREE.Vector3(towerPos.x, towerPos.y, towerPos.z);
+        
+        const effectorNubPos = GeometryUtils.calculateArmPosition(n, er, 0, true);
+        this.effector_nub_ctr[n / 2] = new THREE.Vector3(effectorNubPos.x, effectorNubPos.y, effectorNubPos.z);
       }
-      this.rodpos[n] = this.rodPosition(n);
-      this.effector_nub[n] = this.towerPosition(n, er, false as any, sp);
+      
+      // Calculate rod positions using GeometryUtils
+      const rodPos = GeometryUtils.calculateTowerPosition(Math.floor(n / 2), this.bot_radius);
+      this.rodpos[n] = new THREE.Vector3(rodPos.x, rodPos.y, rodPos.z);
+      
+      const effectorNub = GeometryUtils.calculateArmPosition(n, er, sp, false);
+      this.effector_nub[n] = new THREE.Vector3(effectorNub.x, effectorNub.y, effectorNub.z);
     }
 
-    // Recalculate the length of the arms
-    // for all the new dimensions
+    // Recalculate dependent parameters using DeltaCalculations
     this.DELTA_RADIUS =
       this.DELTA_SMOOTH_ROD_OFFSET -
       this.DELTA_EFFECTOR_OFFSET -
       this.DELTA_CARRIAGE_OFFSET;
 
-    // rod_space = total_radius - effector_radius - carriage_inset
-    //
-    // Kossel Frame Calculator:
-    //
-    // Input   a = length of beam for a triangle
-    //         b = vertical length
-    // Output
-    // a+60           : total width (including printed plastic corners)
-    // a*0.72         : diameter of printable circle (if the print surface does not extend outside triangle)
-    // a*0.72/sqrt(2) : width of printable square (inside printable circle)
-    // a*0.8          : recommended length for diagonal arms (center to center distance of ball joints)
-    // b-170-a*0.8    : estimated print height
+    // Update configuration values to match current settings
+    this.DELTA_EFFECTOR_OFFSET = this.effector_radius;
+    this.DELTA_CARRIAGE_OFFSET = this.carriage_inset;
+    this.DELTA_DIAGONAL_ROD = this.arm_length;
 
-    // TODO: First get and derive a, b from the inputs
-    //
-
-    // Horizontal offset of the universal joints on the end effector.
-    // (This could be considered the outer radius of the effector.)
-    this.DELTA_EFFECTOR_OFFSET = this.effector_radius; // mm...
-
-    // Horizontal offset of the universal joints on the carriages.
-    // That is, how far towards the center. Just assume 25mm for now.
-    this.DELTA_CARRIAGE_OFFSET = 25.0;
-
-    // Center-to-center distance of the holes in the diagonal push rods.
-    this.DELTA_DIAGONAL_ROD = 240.0;
-
-    // Horizontal offset from middle of printer to smooth rod center.
-    // This implies the middle point of the open area between joints. Is it?
-    // (X - 15) / 2 = 195
-    // X = 405
-    this.DELTA_SMOOTH_ROD_OFFSET = 195.0;
+    // Calculate smooth rod offset based on geometry
     this.DELTA_SMOOTH_ROD_OFFSET =
       this.DELTA_CARRIAGE_OFFSET +
-      (br - this.DELTA_CARRIAGE_OFFSET - this.DELTA_EFFECTOR_OFFSET) / 2;
+      (this.bot_radius - this.DELTA_CARRIAGE_OFFSET - this.DELTA_EFFECTOR_OFFSET) / 2;
 
-    // Calculate advanced build volume and frame statistics
+    // Calculate advanced build volume and frame statistics using DeltaCalculations
     this.calculateBuildVolume();
   }
 
