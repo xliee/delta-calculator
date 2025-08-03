@@ -24,6 +24,9 @@ export class DeltaGeometryManager {
     ball_joints: [], // Add ball joints array
   };
 
+  // Tower label sprites (for cleanup)
+  private towerLabels: THREE.Sprite[] = [];
+
   // Calculated positions
   private towerPositions: THREE.Vector3[] = [];
   private rodPositions: THREE.Vector3[] = [];
@@ -209,6 +212,68 @@ export class DeltaGeometryManager {
 
       this.objects.platforms.push(platform);
       this.scene.add(platform);
+    }
+
+    // Add tower labels (A, B, C) at the bottom of each tower
+    this.createTowerLabels();
+  }
+
+  // Create text labels for each tower (A, B, C)
+  private createTowerLabels(): void {
+    const towerNames = ['A', 'B', 'C'];
+    
+    for (let i = 0; i < 3; i++) {
+      // Create a separate canvas for each label
+      const canvas = document.createElement('canvas');
+      const context = canvas.getContext('2d')!;
+      canvas.width = 128;
+      canvas.height = 128;
+      
+      // Set text properties
+      context.font = 'bold 72px Arial';
+      context.fillStyle = '#ffffff';
+      context.strokeStyle = '#000000';
+      context.lineWidth = 4;
+      context.textAlign = 'center';
+      context.textBaseline = 'middle';
+      
+      // Draw text with outline
+      context.strokeText(towerNames[i], canvas.width / 2, canvas.height / 2);
+      context.fillText(towerNames[i], canvas.width / 2, canvas.height / 2);
+      
+      // Create texture from canvas
+      const texture = new THREE.CanvasTexture(canvas);
+      texture.needsUpdate = true;
+      
+      // Create sprite material and sprite
+      const spriteMaterial = new THREE.SpriteMaterial({ 
+        map: texture,
+        transparent: true,
+        alphaTest: 0.1
+      });
+      const sprite = new THREE.Sprite(spriteMaterial);
+      
+      // Scale the sprite appropriately
+      sprite.scale.set(30, 30, 1);
+      
+      // Position the label below the bottom platform for each tower
+      const towerPos = this.towerPosition(i * 2, this.config.bot_radius, true);
+      const bottomPlatformZ = -(this.config.bot_height / 2) - 5; // Below bottom platform
+      const labelOffset = 25; // Distance from tower center
+      
+      // Calculate position outside the bottom plate
+      const distance = Math.sqrt(towerPos.x * towerPos.x + towerPos.y * towerPos.y);
+      const normalizedX = towerPos.x / distance;
+      const normalizedY = towerPos.y / distance;
+      
+      sprite.position.set(
+        towerPos.x + normalizedX * labelOffset,
+        towerPos.y + normalizedY * labelOffset,
+        bottomPlatformZ - 20 // Below the bottom platform
+      );
+      
+      this.scene.add(sprite);
+      this.towerLabels.push(sprite); // Add to tower labels array for cleanup
     }
   }
 
@@ -599,6 +664,16 @@ export class DeltaGeometryManager {
     [...this.objects.arms, ...this.objects.rods, ...this.objects.platforms, ...this.objects.carriages, ...this.objects.ball_joints].forEach(obj => {
       this.scene.remove(obj);
     });
+
+    // Remove tower labels
+    this.towerLabels.forEach(label => {
+      this.scene.remove(label);
+      if (label.material.map) {
+        label.material.map.dispose();
+      }
+      label.material.dispose();
+    });
+    this.towerLabels = [];
 
     if (this.objects.effector) {
       this.scene.remove(this.objects.effector);
