@@ -882,55 +882,25 @@ export class DeltabotApp {
     }
 
     // Update debug info to show which constraint is most restrictive
-    this.updateConstraintAnalysis();
+    this.calculateAndUpdateConstraintAnalysis();
   }
 
-  public updateConstraintAnalysis(): void {
-    // Calculate all possible constraints to see which one is most restrictive
+  private calculateAndUpdateConstraintAnalysis(): void {
+    // Calculate constraint analysis and delegate UI update to UIManager
     const config = this.getCurrentDeltaConfig();
-    const constraintCalculator =
-      this.deltaCalculations.getConstraintCalculator();
+    const constraintCalculator = this.deltaCalculations.getConstraintCalculator();
     constraintCalculator.updateConfig(config);
+    constraintCalculator.setConstraintType(this.constraint_type as ConstraintType);
+    
+    const realRadius = constraintCalculator.calculateRealBuildPlateRadius();
+    const clearance = constraintCalculator.getConstraintClearance();
+    const constraintDescription = constraintCalculator.getActiveConstraintDescription();
 
-    // Calculate constraints for each type
-    const constraints = {
-      "effector-edge": { radius: 0, name: "Effector Edge" },
-      "effector-tip": { radius: 0, name: "Effector Tip" },
-      "horizontal-extrusions": { radius: 0, name: "Frame Extrusions" },
-    };
-
-    // Calculate radius for each constraint type
-    Object.keys(constraints).forEach((type) => {
-      constraintCalculator.setConstraintType(type as ConstraintType);
-      constraints[type as keyof typeof constraints].radius =
-        constraintCalculator.calculateRealBuildPlateRadius();
+    this.uiManager.updateConstraintAnalysis({
+      realRadius,
+      clearance,
+      constraintDescription,
     });
-
-    // Reset to current constraint type
-    constraintCalculator.setConstraintType(
-      this.constraint_type as ConstraintType
-    );
-    const theoretical_radius =
-      constraintCalculator.calculateRealBuildPlateRadius();
-    const kinematic_radius = this.calculateKinematicLimit();
-
-    // Determine which constraint is the most restrictive (excluding physical bed)
-    let most_restrictive =
-      constraints[this.constraint_type as keyof typeof constraints].name;
-    let most_restrictive_value = theoretical_radius;
-
-    if (kinematic_radius < most_restrictive_value) {
-      most_restrictive = "Arm Kinematics";
-      most_restrictive_value = kinematic_radius;
-    }
-
-    // Update UI if element exists
-    const activeConstraintEl = document.getElementById("active-constraint");
-    if (activeConstraintEl) {
-      activeConstraintEl.textContent = `${most_restrictive} (${Math.floor(
-        most_restrictive_value
-      )}mm)`;
-    }
   }
 
   public setConstraintType(type: string): void {
