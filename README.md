@@ -14,7 +14,7 @@ A web-based tool for calculating kinematics and dimensions of delta 3D printers.
 ## Installation
 
 ### Prerequisites
-- Node.js (v16 or higher)
+- Node.js 24
 - Modern web browser with WebGL support
 
 ### Setup
@@ -34,7 +34,7 @@ A web-based tool for calculating kinematics and dimensions of delta 3D printers.
    npm run dev
    ```
 
-4. Open your browser and navigate to `http://localhost:5173`
+4. Open your browser and navigate to `http://localhost:3000`
 
 ### Build for Production
 ```bash

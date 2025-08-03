@@ -50,7 +50,7 @@ export default defineConfig(({ command, mode }) => {
       port: 3000,
 
       // Automatically open browser
-      open: true,
+      open: false,
 
       // Enable CORS for STL file loading
       cors: true,
@@ -61,7 +61,7 @@ export default defineConfig(({ command, mode }) => {
 
     // Preview server configuration (for 'vite preview')
     preview: {
-      port: 4173,
+      port: 3000,
       host: true,
     },
 

@@ -5,6 +5,7 @@ import { UIManager } from "./ui/UIManager.ts";
 import { DeltaCalculations } from "./calculations/DeltaCalculations.ts";
 import { DeltaGeometryManager } from "./geometry/DeltaGeometryManager.ts";
 import { RenderingManager } from "./rendering/RenderingManager.ts";
+import { STLModelManager } from "./models/STLModelManager.ts";
 import { GeometryUtils } from "./utils/index.ts";
 import { EFFECTOR_CONFIGURATIONS } from "./constants.js";
 import type {
@@ -183,6 +184,7 @@ export class DeltabotApp {
   private deltaCalculations!: DeltaCalculations;
   private geometryManager!: DeltaGeometryManager;
   private renderingManager!: RenderingManager;
+  private stlModelManager!: STLModelManager;
 
   constructor() {
     // Constructor is empty, initialization happens in init()
@@ -225,6 +227,10 @@ export class DeltabotApp {
     const deltaConfig = this.getCurrentDeltaConfig();
     this.geometryManager = new DeltaGeometryManager(this.scene, deltaConfig);
 
+    // Initialize STL model manager (now that scene is available)
+    this.stlModelManager = new STLModelManager(this.scene, 0);
+    this.stlModelManager.makeGloballyAccessible();
+
     this.cube = this.addCubeToScene(this.scene);
 
     this.initBotGeometry();
@@ -258,7 +264,6 @@ export class DeltabotApp {
 
     // Initialize rendering manager
     this.renderingManager = new RenderingManager();
-
   }
 
   // Get current delta configuration from old properties
@@ -640,6 +645,9 @@ export class DeltabotApp {
     this.build_plate = new THREE.Mesh(printableGeometry, printableMaterial);
     this.build_plate.position.set(0, baseY + 1, 0);
     this.scene.add(this.build_plate);
+
+    // Update STL model manager with correct build plate Y position
+    this.stlModelManager.updateBuildPlateY(baseY + 1);
 
     // Create physical bed (green) - user configurable, can be hidden
     if (this.show_physical_bed) {
