@@ -17,11 +17,11 @@ export class RenderingManager {
   constructor() {}
 
   // Initialize the complete rendering system
-  public init(): { renderer: THREE.WebGLRenderer; camera: THREE.PerspectiveCamera; scene: THREE.Scene; controls: OrbitControls | undefined } {
+  public init(botRadius: number, botHeight: number): { renderer: THREE.WebGLRenderer; camera: THREE.PerspectiveCamera; scene: THREE.Scene; controls: OrbitControls | undefined } {
     this.renderer = this.initRenderer();
-    this.camera = this.initCamera();
+    this.camera = this.initCamera(botRadius, botHeight);
     this.scene = this.initScene();
-    this.setupOrbitControls();
+    this.setupOrbitControls(botRadius, botHeight);
 
     return {
       renderer: this.renderer,
@@ -42,8 +42,7 @@ export class RenderingManager {
     }
 
     const renderer = new THREE.WebGLRenderer({
-      alpha: RENDERER_CONFIG.ALPHA,
-      antialias: RENDERER_CONFIG.ANTIALIAS,
+      alpha: true,
     });
 
     // Enable shadows
@@ -67,52 +66,38 @@ export class RenderingManager {
     renderer.setSize(container.clientWidth, window.innerHeight);
   }
 
-  // Create enhanced lighting setup
+  // Create enhanced lighting setup matching deltacalc.ts
   private initScene(): THREE.Scene {
     const scene = new THREE.Scene();
 
+    // Enhanced lighting setup inspired by deltacalc_de.js
     // Ambient lighting for overall illumination
-    const ambientLight = new THREE.AmbientLight(
-      COLORS.AMBIENT_LIGHT,
-      RENDERER_CONFIG.LIGHT_INTENSITY.AMBIENT
-    );
-    scene.add(ambientLight);
+    scene.add(new THREE.AmbientLight(0x404040, 0.4));
 
     // Main directional light simulating sunlight
-    const directionalLight = new THREE.DirectionalLight(
-      COLORS.DIRECTIONAL_LIGHT,
-      RENDERER_CONFIG.LIGHT_INTENSITY.DIRECTIONAL
-    );
+    const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
     directionalLight.position.set(100, 100, 50);
     directionalLight.castShadow = true;
-    directionalLight.shadow.mapSize.width = RENDERER_CONFIG.SHADOW_MAP_SIZE;
-    directionalLight.shadow.mapSize.height = RENDERER_CONFIG.SHADOW_MAP_SIZE;
+    directionalLight.shadow.mapSize.width = 2048;
+    directionalLight.shadow.mapSize.height = 2048;
     directionalLight.shadow.camera.near = 0.5;
     directionalLight.shadow.camera.far = 500;
     scene.add(directionalLight);
 
     // Hemisphere light for natural color variation
-    const hemisphereLight = new THREE.HemisphereLight(
-      COLORS.HEMISPHERE_SKY,
-      COLORS.HEMISPHERE_GROUND,
-      RENDERER_CONFIG.LIGHT_INTENSITY.HEMISPHERE
-    );
+    const hemisphereLight = new THREE.HemisphereLight(0x87ceeb, 0x8b4513, 0.3);
     scene.add(hemisphereLight);
 
     // Point light for additional fill lighting
-    const pointLight = new THREE.PointLight(
-      COLORS.POINT_LIGHT,
-      RENDERER_CONFIG.LIGHT_INTENSITY.POINT,
-      1000
-    );
+    const pointLight = new THREE.PointLight(0xffffff, 0.5, 1000);
     pointLight.position.set(-100, 100, 100);
     scene.add(pointLight);
 
     return scene;
   }
 
-  // Create camera with proper positioning
-  private initCamera(): THREE.PerspectiveCamera {
+  // Create camera with proper positioning matching deltacalc.ts
+  private initCamera(botRadius: number, botHeight: number): THREE.PerspectiveCamera {
     const camera = new THREE.PerspectiveCamera(
       35,
       this.divSize.w / this.divSize.h,
@@ -120,14 +105,27 @@ export class RenderingManager {
       15000
     );
 
+    // Position camera relative to delta robot geometry
+    const d1 = botRadius * 2 + 200;
+    const d2 = botHeight * 2 + 50;
+    const distance = Math.max(d1, d2) * 0.8;
+    const targetY = -botHeight / 8;
+
+    camera.position.set(
+      distance * 0.3,  // X offset
+      targetY + distance * 0.5,  // Y well above target
+      distance * 0.8   // Z offset
+    );
+
     return camera;
   }
 
-  // Set up orbit controls after camera and scene are ready
-  private setupOrbitControls(): void {
+  // Set up orbit controls matching deltacalc.ts
+  private setupOrbitControls(botRadius: number, botHeight: number): void {
     const container = document.getElementById("graphics");
     if (!container) throw new Error("Graphics container not found");
 
+    // Get container child canvas
     if (container.children.length === 0) {
       throw new Error("Graphics container has no child canvas");
     }
@@ -136,19 +134,24 @@ export class RenderingManager {
     this.controlsOrbit = new OrbitControls(this.camera, canvas);
 
     // Prevent problematic camera positions that cause NaN
-    this.controlsOrbit.minDistance = UI_CONFIG.CAMERA_MIN_DISTANCE;
-    this.controlsOrbit.maxDistance = UI_CONFIG.CAMERA_MAX_DISTANCE;
-    this.controlsOrbit.minPolarAngle = UI_CONFIG.CAMERA_MIN_POLAR_ANGLE;
-    this.controlsOrbit.maxPolarAngle = UI_CONFIG.CAMERA_MAX_POLAR_ANGLE;
+    this.controlsOrbit.minDistance = 100;
+    this.controlsOrbit.maxDistance = 2000;
+    this.controlsOrbit.minPolarAngle = Math.PI * 0.1; // Prevent camera from going to poles
+    this.controlsOrbit.maxPolarAngle = Math.PI * 0.9;
 
     // Smoother controls
     this.controlsOrbit.enableDamping = true;
-    this.controlsOrbit.dampingFactor = UI_CONFIG.DAMPING_FACTOR;
+    this.controlsOrbit.dampingFactor = 0.05;
     this.controlsOrbit.screenSpacePanning = false;
 
-    // Add NaN detection for camera position
+    // Set target to center of the delta robot model
+    const targetY = -botHeight / 8;
+    this.controlsOrbit.target.set(0, targetY, 0);
+    this.controlsOrbit.update();
+
+    // Add event listener with NaN detection
     this.controlsOrbit.addEventListener('change', () => {
-      this.validateCameraPosition();
+      this.validateCameraPosition(botRadius, botHeight);
     });
   }
 
@@ -172,20 +175,28 @@ export class RenderingManager {
   }
 
   // Validate and fix camera position if NaN detected
-  private validateCameraPosition(): void {
+  private validateCameraPosition(botRadius: number, botHeight: number): void {
     const pos = this.camera.position;
     if (Number.isNaN(pos.x) || Number.isNaN(pos.y) || Number.isNaN(pos.z)) {
       console.warn('NaN detected in camera position, resetting...');
-      // Reset to a safe position
-      this.camera.position.set(400, 200, 600);
+      // Reset to a safe position based on bot dimensions
+      const d1 = botRadius * 2 + 200;
+      const d2 = botHeight * 2 + 50;
+      const distance = Math.max(d1, d2) * 0.8;
+      const targetY = -botHeight / 8;
+      this.camera.position.set(
+        distance * 0.3,
+        targetY + distance * 0.5,
+        distance * 0.8
+      );
       if (this.controlsOrbit) {
-        this.controlsOrbit.target.set(0, 0, 0);
+        this.controlsOrbit.target.set(0, targetY, 0);
         this.controlsOrbit.update();
       }
     }
   }
 
-  // Handle window resize
+  // Handle window resize matching deltacalc.ts
   public handleResize(botRadius: number, botHeight: number): void {
     this.updateRendererSize(this.renderer);
     this.camera.aspect = this.divAspect;
@@ -193,7 +204,7 @@ export class RenderingManager {
     this.positionCamera(botRadius, botHeight);
   }
 
-  // Start the render loop
+  // Start the render loop matching deltacalc.ts pattern
   public startRenderLoop(updateCallback: () => void, onAnimateCallback: () => void): void {
     const renderLoop = () => {
       requestAnimationFrame(renderLoop);
@@ -201,7 +212,7 @@ export class RenderingManager {
       // Call animation update
       onAnimateCallback();
 
-      // Update controls and scene
+      // Update controls
       if (this.controlsOrbit) {
         this.controlsOrbit.update();
       }

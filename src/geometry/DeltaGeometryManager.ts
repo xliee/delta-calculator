@@ -19,8 +19,8 @@ export class DeltaGeometryManager {
     platforms: [],
     carriages: [],
     effector: null,
-    build_plate: undefined,
-    physical_bed: undefined,
+    build_plate: undefined, // Managed by deltacalc.ts
+    physical_bed: undefined, // Managed by deltacalc.ts
     ball_joints: [], // Add ball joints array
   };
 
@@ -134,7 +134,7 @@ export class DeltaGeometryManager {
     this.createCarriages();
     this.createArms();
     this.createEffector();
-    this.createBuildPlate();
+    // Build plate creation handled by deltacalc.ts initBuildPlate() method
   }
 
   // Create vertical support rods
@@ -479,23 +479,6 @@ export class DeltaGeometryManager {
     };
   }
 
-  // Create build plate visualization
-  private createBuildPlate(): void {
-    // This will be implemented based on build volume calculations
-    // For now, create a basic circular plate
-    const geometry = new THREE.CylinderGeometry(50, 50, 1, 32);
-    const material = new THREE.MeshLambertMaterial({
-      color: COLORS.BUILD_PLATE,
-      transparent: true,
-      opacity: 0.6
-    });
-
-    this.objects.build_plate = new THREE.Mesh(geometry, material);
-    this.objects.build_plate.position.set(0, -this.config.bot_height / 2 + 5, 0);
-    this.objects.build_plate.receiveShadow = true;
-    this.scene.add(this.objects.build_plate);
-  }
-
   // Update arm positions based on effector position
   public updateArmPositions(effectorPosition: THREE.Vector3, carriageYPositions: number[]): void {
     if (!this.objects.effector || !this.objects.arms || this.objects.arms.length !== 6) {
@@ -613,12 +596,7 @@ export class DeltaGeometryManager {
     if (this.objects.effector) {
       this.scene.remove(this.objects.effector);
     }
-    if (this.objects.build_plate) {
-      this.scene.remove(this.objects.build_plate);
-    }
-    if (this.objects.physical_bed) {
-      this.scene.remove(this.objects.physical_bed);
-    }
+    // build_plate and physical_bed are managed by deltacalc.ts
 
     // Clear arrays
     this.objects.arms = [];
@@ -627,8 +605,7 @@ export class DeltaGeometryManager {
     this.objects.carriages = [];
     this.objects.ball_joints = [];
     this.objects.effector = null;
-    this.objects.build_plate = undefined;
-    this.objects.physical_bed = undefined;
+    // build_plate and physical_bed are managed by deltacalc.ts
   }
 
   // Ball joint control methods
@@ -668,6 +645,6 @@ export class DeltaGeometryManager {
     this.createCarriages();
     this.createArms();
     this.createEffector();
-    this.createBuildPlate();
+    // Build plate creation handled by deltacalc.ts initBuildPlate() method
   }
 }

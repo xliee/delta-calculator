@@ -1,6 +1,7 @@
 import { EffectorPreviewManager } from '../effectors/EffectorPreviewManager.js';
 import { StatsManager } from './StatsManager.js';
 import { EFFECTOR_CONFIGURATIONS } from '../constants.js';
+import { deltabotApp } from '../deltacalc.js';
 import type { DeltaRobotConfig, EffectorConfig, EffectorConfigExtended, EffectorType, BuildVolumeConfig, ConstraintType } from '../types.js';
 
 /**
@@ -145,23 +146,45 @@ export class UIManager {
    */
   private initializeEffectorParameterHandlers(): void {
     const controls = [
-      { slider: 'effector-radius', value: 'effector-radius-value', unit: 'mm' },
-      { slider: 'rod-spacing', value: 'rod-spacing-value', unit: 'mm' }
+      { slider: 'effector-radius-slider', input: 'effector-radius-input', unit: 'mm' },
+      { slider: 'eff-spacing-slider', input: 'eff-spacing-input', unit: 'mm' }
     ];
 
     controls.forEach(control => {
       const slider = document.getElementById(control.slider) as HTMLInputElement;
-      const valueSpan = document.getElementById(control.value) as HTMLSpanElement;
+      const input = document.getElementById(control.input) as HTMLInputElement;
 
-      if (slider && valueSpan) {
-        slider.addEventListener('input', () => {
-          valueSpan.textContent = `${slider.value} ${control.unit}`;
+      if (slider && input) {
+        // Sync slider and input values
+        const updateValue = (value: string) => {
+          slider.value = value;
+          input.value = value;
 
-          // Update preview with current values
-          const currentConfig = this.getCurrentEffectorConfig();
-          this.effectorPreviewManager.updatePreviewWithConfig(currentConfig);
+          // Update preview with current values from all effector controls
+          const effectorType = (document.getElementById('effector-type') as HTMLSelectElement)?.value || 'standard';
+          const currentConfig = EFFECTOR_CONFIGURATIONS[effectorType as EffectorType];
+          if (currentConfig) {
+            // Get current values from all effector controls
+            const radiusSlider = document.getElementById('effector-radius-slider') as HTMLInputElement;
+            const spacingSlider = document.getElementById('eff-spacing-slider') as HTMLInputElement;
+
+            const updatedConfig = {
+              ...currentConfig,
+              radius: radiusSlider ? parseFloat(radiusSlider.value) || currentConfig.radius : currentConfig.radius,
+              spacing: spacingSlider ? parseFloat(spacingSlider.value) || currentConfig.spacing : currentConfig.spacing
+            };
+            this.effectorPreviewManager.updatePreviewWithConfig(updatedConfig);
+          }
 
           this.triggerConfigurationUpdate();
+        };
+
+        slider.addEventListener('input', () => {
+          updateValue(slider.value);
+        });
+
+        input.addEventListener('change', () => {
+          updateValue(input.value);
         });
       }
     });
@@ -196,41 +219,60 @@ export class UIManager {
   }
 
   /**
-   * Trigger configuration update
+   * Trigger configuration update for effector-specific and build volume parameters
+   * UIManager manages effector parameters and build volume constraints, main.ts handles robot geometry
    */
   private triggerConfigurationUpdate(): void {
     if (this.onConfigurationChange) {
-      const config = this.getCurrentConfiguration();
+      // Get values from UI
+      const getValue = (id: string, defaultValue: number): number => {
+        const element = document.getElementById(id) as HTMLInputElement;
+        return element ? parseFloat(element.value) || defaultValue : defaultValue;
+      };
+
+      const getChecked = (id: string): boolean => {
+        const element = document.getElementById(id) as HTMLInputElement;
+        return element ? element.checked : false;
+      };
+
+      // Update deltabotApp with effector-specific parameters
+      deltabotApp.effector_radius = getValue('effector-radius-slider', 40);
+      deltabotApp.eff_spacing = getValue('eff-spacing-slider', 30);
+
+      // Update deltabotApp with build volume constraint parameters
+      deltabotApp.physical_bed_radius = getValue('physical-bed-radius-slider', 100);
+      deltabotApp.show_physical_bed = getChecked('show-physical-bed');
+
+      // Update constraint type
+      const constraintRadios = document.querySelectorAll('input[name="constraint-type"]');
+      for (const radio of constraintRadios) {
+        const radioElement = radio as HTMLInputElement;
+        if (radioElement.checked) {
+          deltabotApp.constraint_type = radioElement.value;
+          break;
+        }
+      }
+
+      // Get complete configuration (deltabotApp now has updated effector values)
+      const config: DeltaRobotConfig = {
+        rod_radius: deltabotApp.rod_radius,
+        bot_radius: deltabotApp.bot_radius,
+        bot_height: deltabotApp.bot_height,
+        rod_spacing: deltabotApp.rod_spacing,
+        arm_radius: deltabotApp.arm_radius,
+        carriage_inset: deltabotApp.carriage_inset,
+        carriage_height: deltabotApp.carriage_height,
+        carriage_offset: deltabotApp.carriage_offset,
+        diagonal_rod_length: deltabotApp.diagonal_rod_length,
+        tower_offset: deltabotApp.tower_offset,
+        arm_length: deltabotApp.arm_length,
+        effector_radius: deltabotApp.effector_radius,
+        eff_spacing: deltabotApp.eff_spacing
+      };
+
       const buildVolumeConfig = this.getCurrentBuildVolumeConfig();
       this.onConfigurationChange(config, buildVolumeConfig);
     }
-  }
-
-  /**
-   * Get current configuration from UI controls
-   */
-  private getCurrentConfiguration(): DeltaRobotConfig {
-    // Read actual values from UI controls
-    const getValue = (id: string, defaultValue: number): number => {
-      const element = document.getElementById(id) as HTMLInputElement;
-      return element ? parseFloat(element.value) || defaultValue : defaultValue;
-    };
-
-    return {
-      rod_radius: getValue('rod-radius-slider', 4),
-      bot_radius: getValue('bot-radius-slider', 240),
-      bot_height: getValue('bot-height-slider', 700),
-      rod_spacing: getValue('rod-spacing-slider', 30),
-      arm_length: getValue('diagonal-rod-slider', 240),
-      carriage_inset: getValue('carriage-inset-slider', 25),
-      carriage_height: getValue('carriage-height-slider', 30),
-      carriage_offset: getValue('carriage-offset-slider', 0),
-      arm_radius: getValue('arm-radius-slider', 2.5),
-      diagonal_rod_length: getValue('diagonal-rod-slider', 240),
-      tower_offset: getValue('tower-offset-slider', 25),
-      effector_radius: getValue('effector-radius-slider', 40),
-      eff_spacing: getValue('eff-spacing-slider', 30)
-    };
   }
 
   /**
@@ -244,7 +286,7 @@ export class UIManager {
 
     return {
       radius: getValue('effector-radius-slider', 40),
-      spacing: getValue('rod-spacing-slider', 30),
+      spacing: getValue('eff-spacing-slider', 30),
       stl: 'default' // This would be determined by the effector type
     };
   }

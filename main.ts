@@ -13,8 +13,7 @@ const parameters: ParameterConfig[] = [
   { property: 'carriage_height', sliderId: 'carriage-height-slider', inputId: 'carriage-height-input', ...PARAMETER_LIMITS.carriage_height },
   { property: 'carriage_offset', sliderId: 'carriage-offset-slider', inputId: 'carriage-offset-input', ...PARAMETER_LIMITS.carriage_offset, updateMethod: 'setCarriageOffset' },
   { property: 'arm_radius', sliderId: 'arm-radius-slider', inputId: 'arm-radius-input', ...PARAMETER_LIMITS.arm_radius },
-  { property: 'effector_radius', sliderId: 'effector-radius-slider', inputId: 'effector-radius-input', ...PARAMETER_LIMITS.effector_radius },
-  { property: 'eff_spacing', sliderId: 'eff-spacing-slider', inputId: 'eff-spacing-input', ...PARAMETER_LIMITS.eff_spacing },
+  // effector_radius and eff_spacing removed - now handled by UIManager
   { property: 'diagonal_rod_length', sliderId: 'diagonal-rod-slider', inputId: 'diagonal-rod-input', ...PARAMETER_LIMITS.diagonal_rod_length },
   { property: 'tower_offset', sliderId: 'tower-offset-slider', inputId: 'tower-offset-input', ...PARAMETER_LIMITS.tower_offset }
 ];
@@ -30,7 +29,7 @@ function setupParameterControls(): void {
     if (!slider || !input) return;
 
     // Set initial values
-    const currentValue = deltabotApp[param.property] as number;
+    const currentValue = (deltabotApp as any)[param.property] as number;
     slider.value = currentValue.toString();
     input.value = currentValue.toString();
 
@@ -40,10 +39,10 @@ function setupParameterControls(): void {
       slider.value = clampedValue.toString();
       input.value = clampedValue.toString();
 
-      if (param.updateMethod && typeof deltabotApp[param.updateMethod] === 'function') {
-        (deltabotApp[param.updateMethod] as (value: number) => void)(clampedValue);
+      if (param.updateMethod && typeof (deltabotApp as any)[param.updateMethod] === 'function') {
+        ((deltabotApp as any)[param.updateMethod] as (value: number) => void)(clampedValue);
       } else {
-        (deltabotApp[param.property] as number) = clampedValue;
+        ((deltabotApp as any)[param.property] as number) = clampedValue;
         deltabotApp.rebuildScene();
       }
     };
@@ -61,7 +60,7 @@ function setupParameterControls(): void {
         updateValue(value);
       } else {
         // Reset to current value if invalid
-        input.value = (deltabotApp[param.property] as number).toString();
+        input.value = ((deltabotApp as any)[param.property] as number).toString();
       }
     });
 
@@ -88,50 +87,7 @@ function setupParameterControls(): void {
     });
   }
 
-  // Setup build plate constraint controls
-  const constraintRadios = document.querySelectorAll('input[name="bp-constraint"]');
-  constraintRadios.forEach(radio => {
-    radio.addEventListener('change', (e) => {
-      const value = (e.target as HTMLInputElement).value;
-      deltabotApp.setConstraintType(value);
-    });
-  });
-
-  // Setup physical bed controls
-  const showPhysicalBedCheckbox = document.getElementById('show-physical-bed') as HTMLInputElement;
-  if (showPhysicalBedCheckbox) {
-    showPhysicalBedCheckbox.addEventListener('change', (e) => {
-      deltabotApp.show_physical_bed = (e.target as HTMLInputElement).checked;
-      deltabotApp.initBuildPlate();
-    });
-  }
-
-  const physicalBedSlider = document.getElementById('physical-bed-radius-slider') as HTMLInputElement;
-  const physicalBedInput = document.getElementById('physical-bed-radius-input') as HTMLInputElement;
-  if (physicalBedSlider && physicalBedInput) {
-    const updatePhysicalBed = (value: number) => {
-      const clampedValue = Math.max(50, Math.min(200, value));
-      physicalBedSlider.value = clampedValue.toString();
-      physicalBedInput.value = clampedValue.toString();
-      deltabotApp.physical_bed_radius = clampedValue;
-      deltabotApp.calculateBuildVolume();
-      deltabotApp.initBuildPlate();
-    };
-
-    physicalBedSlider.addEventListener('input', (e) => {
-      const value = parseFloat((e.target as HTMLInputElement).value);
-      updatePhysicalBed(value);
-    });
-
-    physicalBedInput.addEventListener('change', (e) => {
-      const value = parseFloat((e.target as HTMLInputElement).value);
-      if (!Number.isNaN(value)) {
-        updatePhysicalBed(value);
-      } else {
-        physicalBedInput.value = deltabotApp.physical_bed_radius.toString();
-      }
-    });
-  }
+  // Build plate constraints and physical bed controls are now handled by UIManager
 }
 
 // Function to update UI inputs from current app values
@@ -141,7 +97,7 @@ function updateParameterInputs(): void {
     const input = document.getElementById(param.inputId) as HTMLInputElement;
 
     if (slider && input) {
-      const currentValue = deltabotApp[param.property] as number;
+      const currentValue = (deltabotApp as any)[param.property] as number;
       slider.value = currentValue.toString();
       input.value = currentValue.toString();
     }
@@ -242,21 +198,7 @@ function setupActionButtons(): void {
   }
 }
 
-// Setup build plate constraint controls
-function setupBuildPlateConstraints(): void {
-  // Constraint type controls
-  const constraintRadios = document.querySelectorAll('input[name="bp-constraint"]') as NodeListOf<HTMLInputElement>;
-  constraintRadios.forEach(radio => {
-    radio.addEventListener('change', (e) => {
-      const target = e.target as HTMLInputElement;
-      if (target.checked) {
-        // Update constraint type in deltabotApp
-        deltabotApp.setConstraintType(target.value);
-        deltabotApp.rebuildScene();
-      }
-    });
-  });
-}
+// Build plate constraint controls are now handled by UIManager
 
 // Initialize the deltabotApp when the DOM is ready
 document.addEventListener('DOMContentLoaded', (): void => {
@@ -266,7 +208,7 @@ document.addEventListener('DOMContentLoaded', (): void => {
   setupParameterControls();
   setupPresetButtons();
   setupActionButtons();
-  setupBuildPlateConstraints();
+  // setupBuildPlateConstraints(); // Now handled by UIManager
 
   // Load default preset
   loadPreset(presets['kossel-standard']);

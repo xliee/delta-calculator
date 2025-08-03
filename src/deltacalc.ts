@@ -209,18 +209,31 @@ export class DeltabotApp {
 
   public init(): void {
     this.keyboard = new KeyboardState();
-    this.renderer = this.initRenderer();
-    this.camera = this.initCamera();
-    this.scene = this.initScene();
-    this.cube = this.addCubeToScene(this.scene);
 
-    // Initialize new managers
+    // Initialize new managers first (without scene-dependent components)
     this.initializeNewManagers();
+
+    // Initialize rendering using RenderingManager
+    const renderingComponents = this.renderingManager.init(this.bot_radius, this.bot_height);
+    this.renderer = renderingComponents.renderer;
+    this.camera = renderingComponents.camera;
+    this.scene = renderingComponents.scene;
+    this.controlsOrbit = renderingComponents.controls;
+
+    // Now initialize geometry manager with the scene
+    const deltaConfig = this.getCurrentDeltaConfig();
+    this.geometryManager = new DeltaGeometryManager(this.scene, deltaConfig);
+
+    this.cube = this.addCubeToScene(this.scene);
 
     this.initBotGeometry();
     this.initDeltabot();
     this.setupKeyboardHandling();
     window.addEventListener("resize", this.handleResize.bind(this), false);
+
+    // Start stats updates after everything is initialized
+    this.startStatsUpdates();
+
     this.renderLoop();
   }
 
@@ -239,14 +252,12 @@ export class DeltabotApp {
     const buildConfig = this.getCurrentBuildConfig();
     this.deltaCalculations = new DeltaCalculations(deltaConfig, buildConfig);
 
-    // Initialize geometry manager
-    this.geometryManager = new DeltaGeometryManager(this.scene, deltaConfig);
+    // Initialize geometry manager (scene will be available after rendering init)
+    // Note: scene will be set later, geometry manager will be updated in initDeltabot()
 
     // Initialize rendering manager
     this.renderingManager = new RenderingManager();
 
-    // Start stats updates
-    this.startStatsUpdates();
   }
 
   // Get current delta configuration from old properties
@@ -374,152 +385,6 @@ export class DeltabotApp {
     updateStats();
   }
 
-  // Create a Three.js WebGL Renderer
-  public initRenderer(): THREE.WebGLRenderer {
-    const container = document.getElementById("graphics");
-    if (!container) throw new Error("Graphics container not found");
-
-    while (container.lastChild) container.removeChild(container.lastChild); // Remove old renderers, in case of re-init.
-    const r = new THREE.WebGLRenderer({
-      alpha: true,
-    });
-    container.appendChild(r.domElement);
-    this.reinitRendererSize(r);
-    return r;
-  }
-
-  public reinitRendererSize(r: THREE.WebGLRenderer): void {
-    const container = document.getElementById("graphics");
-    if (!container) return;
-
-    this.divSize = {
-      w: container.clientWidth,
-      h: window.innerHeight,
-    };
-    this.divAspect = container.clientWidth / window.innerHeight;
-    r.setSize(container.clientWidth, window.innerHeight);
-  }
-
-  public initScene(): THREE.Scene {
-    const s = new THREE.Scene();
-
-    // Enhanced lighting setup inspired by deltacalc_de.js
-    // Ambient lighting for overall illumination
-    s.add(new THREE.AmbientLight(0x404040, 0.4));
-
-    // Main directional light simulating sunlight
-    const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
-    directionalLight.position.set(100, 100, 50);
-    directionalLight.castShadow = true;
-    directionalLight.shadow.mapSize.width = 2048;
-    directionalLight.shadow.mapSize.height = 2048;
-    directionalLight.shadow.camera.near = 0.5;
-    directionalLight.shadow.camera.far = 500;
-    s.add(directionalLight);
-
-    // Hemisphere light for natural color variation
-    const hemisphereLight = new THREE.HemisphereLight(0x87ceeb, 0x8b4513, 0.3);
-    s.add(hemisphereLight);
-
-    // Point light for additional fill lighting
-    const pointLight = new THREE.PointLight(0xffffff, 0.5, 1000);
-    pointLight.position.set(-100, 100, 100);
-    s.add(pointLight);
-
-    return s;
-  }
-
-  // Create a Perspective camera, outside of the scene
-  public initCamera(): THREE.PerspectiveCamera {
-    // Make a camera in front of the center point
-    const c = new THREE.PerspectiveCamera(
-      35,
-      this.divSize.w / this.divSize.h,
-      0.1,
-      15000
-    );
-    const d1 = this.bot_radius * 2 + 200;
-    const d2 = this.bot_height * 2 + 50;
-
-    // Position camera to avoid OrbitControls degeneracy
-    const distance = Math.max(d1, d2) * 0.8;
-    // Use spherical positioning to avoid any axis alignment issues
-    const targetY = -this.bot_height / 8;
-    c.position.set(
-      distance * 0.3, // X offset
-      targetY + distance * 0.5, // Y well above target
-      distance * 0.8 // Z offset
-    );
-
-    const container = document.getElementById("graphics");
-    if (!container) throw new Error("Graphics container not found");
-    // get container child canvas
-    if (container.children.length === 0) {
-      throw new Error("Graphics container has no child canvas");
-    }
-    const canvas = container.children[0] as HTMLCanvasElement;
-
-    this.controlsOrbit = new OrbitControls(c, canvas);
-
-    // Prevent problematic camera positions that cause NaN
-    this.controlsOrbit.minDistance = 100;
-    this.controlsOrbit.maxDistance = 2000;
-    this.controlsOrbit.minPolarAngle = Math.PI * 0.1; // Prevent camera from going to poles
-    this.controlsOrbit.maxPolarAngle = Math.PI * 0.9;
-
-    // Smoother controls
-    this.controlsOrbit.enableDamping = true;
-    this.controlsOrbit.dampingFactor = 0.05;
-    this.controlsOrbit.screenSpacePanning = false;
-
-    // Set target to center of the delta robot model
-    // Model spans from about -bh2 to +bh2 in Y, effector is at -bot_height/4
-    this.controlsOrbit.target.set(0, -this.bot_height / 8, 0);
-    this.controlsOrbit.update();
-
-    // Debug orbit controls events with NaN detection
-    this.controlsOrbit.addEventListener("change", () => {
-      // Check for NaN and reset if needed
-      if (isNaN(c.position.x) || isNaN(c.position.y) || isNaN(c.position.z)) {
-        console.warn("NaN detected in camera position, resetting...");
-        const d1 = this.bot_radius * 2 + 200;
-        const d2 = this.bot_height * 2 + 50;
-        const distance = Math.max(d1, d2) * 0.8;
-        const targetY = -this.bot_height / 8;
-        c.position.set(
-          distance * 0.3,
-          targetY + distance * 0.5,
-          distance * 0.8
-        );
-        this.controlsOrbit?.update();
-      }
-    });
-
-    return c;
-  }
-
-  public handleResize(): void {
-    const d1 = this.bot_radius * 2 + 200;
-    const d2 = this.bot_height * 2 + 50;
-
-    const distance = Math.max(d1, d2) * 0.8;
-    const targetY = -this.bot_height / 8;
-    this.camera.position.set(
-      distance * 0.3, // X offset
-      targetY + distance * 0.5, // Y well above target
-      distance * 0.8 // Z offset
-    );
-    this.reinitRendererSize(this.renderer);
-    this.camera.aspect = this.divAspect;
-    this.camera.updateProjectionMatrix();
-
-    // Update orbit controls target
-    if (this.controlsOrbit) {
-      this.controlsOrbit.target.set(0, targetY, 0);
-      this.controlsOrbit.update();
-    }
-  }
-
   public renderLoop(): void {
     // request that this be called again
     requestAnimationFrame(this.renderLoop.bind(this));
@@ -533,8 +398,6 @@ export class DeltabotApp {
     this.controlsOrbit!.update();
     this.update();
     this.render();
-
-    // Stats are now updated in startStatsUpdates() via requestAnimationFrame
   }
 
   // Tell the GL Renderer to show the scene for the given camera
@@ -542,24 +405,14 @@ export class DeltabotApp {
     this.renderer.render(this.scene, this.camera);
   }
 
+  public handleResize(): void {
+    this.renderingManager.handleResize(this.bot_radius, this.bot_height);
+  }
+
   public reorientCamera(): void {
-    const d1 = this.bot_radius * 2 + 200;
-    const d2 = this.bot_height * 2 + 50;
-    const distance = Math.max(d1, d2) * 0.8;
-    const targetY = -this.bot_height / 8;
-    this.camera.position.set(
-      distance * 0.3, // X offset
-      targetY + distance * 0.5, // Y well above target
-      distance * 0.8 // Z offset
-    );
+    this.renderingManager.positionCamera(this.bot_radius, this.bot_height);
     if (this.cube !== undefined && this.cube != null)
       this.cube.position.set(0, -this.bh2! + 60, 0);
-
-    // Reset orbit controls target and update
-    if (this.controlsOrbit) {
-      this.controlsOrbit.target.set(0, targetY, 0);
-      this.controlsOrbit.update();
-    }
   }
 
   public rebuildScene(): void {
@@ -629,7 +482,6 @@ export class DeltabotApp {
         pc = p.clone().add(this.effector_nub_ctr[i]);
 
       // Apply carriage offset to account for ball joint position relative to carriage
-      // Use geometry manager's method to avoid code duplication
       const carriageOffsetVector =
         this.geometryManager.calculateCarriageOffsetVector(i);
       const adjustedTowerPos = t.clone().add(carriageOffsetVector);
@@ -736,8 +588,6 @@ export class DeltabotApp {
     let br = this.bot_radius;
     let rr = this.rod_radius;
 
-    // All geometry is now handled by DeltaGeometryManager
-    // Remove all original geometry creation to avoid duplication
 
     // Only keep essential non-visual initialization
     this.initBuildPlate();
@@ -891,7 +741,7 @@ export class DeltabotApp {
     const constraintCalculator = this.deltaCalculations.getConstraintCalculator();
     constraintCalculator.updateConfig(config);
     constraintCalculator.setConstraintType(this.constraint_type as ConstraintType);
-    
+
     const realRadius = constraintCalculator.calculateRealBuildPlateRadius();
     const clearance = constraintCalculator.getConstraintClearance();
     const constraintDescription = constraintCalculator.getActiveConstraintDescription();
@@ -944,44 +794,7 @@ export class DeltabotApp {
       this.initBuildPlate();
     }
 
-    // Update UI to reflect parameter changes
-    this.updateUIFromParameters();
   }
-
-  public updateUIFromParameters(): void {
-    // Update UI sliders and inputs to reflect parameter changes
-    const updateControl = (
-      sliderId: string,
-      inputId: string,
-      value: number
-    ) => {
-      const slider = document.getElementById(sliderId) as HTMLInputElement;
-      const input = document.getElementById(inputId) as HTMLInputElement;
-
-      if (slider) slider.value = value.toString();
-      if (input) input.value = value.toString();
-    };
-
-    updateControl(
-      "tower-offset-slider",
-      "tower-offset-input",
-      this.tower_offset
-    );
-    updateControl(
-      "diagonal-rod-slider",
-      "diagonal-rod-input",
-      this.diagonal_rod_length
-    );
-    updateControl(
-      "effector-radius-slider",
-      "effector-radius-input",
-      this.effector_radius
-    );
-  }
-
-  // initCarriages method removed - now handled by DeltaGeometryManager
-
-  // initEffector and effectorLoaded methods removed - now handled by DeltaGeometryManager
 
   public effectorAnimate(): void {
     if (!this.effector) return;
