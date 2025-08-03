@@ -3,6 +3,9 @@ import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { RENDERER_CONFIG, UI_CONFIG, COLORS } from '../constants.ts';
 import type { DivSize } from '../types.ts';
 
+// Set Z-up coordinate system globally for Three.js
+THREE.Object3D.DEFAULT_UP.set(0, 0, 1);
+
 /**
  * Handles Three.js rendering setup and scene management
  */
@@ -66,17 +69,22 @@ export class RenderingManager {
     renderer.setSize(container.clientWidth, window.innerHeight);
   }
 
-  // Create enhanced lighting setup matching deltacalc.ts
+  // Create enhanced lighting setup for Z-up coordinate system
   private initScene(): THREE.Scene {
     const scene = new THREE.Scene();
 
-    // Enhanced lighting setup inspired by deltacalc_de.js
+    // Add axes helper to visualize the Z-up coordinate system
+    // The X axis is red. The Y axis is green. The Z axis is blue. 
+    const axesHelper = new THREE.AxesHelper(25);
+    scene.add(axesHelper);
+
+    // Enhanced lighting setup for Z-up coordinate system
     // Ambient lighting for overall illumination
     scene.add(new THREE.AmbientLight(0x404040, 0.4));
 
-    // Main directional light simulating sunlight
+    // Main directional light simulating sunlight (adjusted for Z-up)
     const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
-    directionalLight.position.set(100, 100, 50);
+    directionalLight.position.set(100, -50, 100); // X=right, Y=back, Z=up
     directionalLight.castShadow = true;
     directionalLight.shadow.mapSize.width = 2048;
     directionalLight.shadow.mapSize.height = 2048;
@@ -84,19 +92,19 @@ export class RenderingManager {
     directionalLight.shadow.camera.far = 500;
     scene.add(directionalLight);
 
-    // Hemisphere light for natural color variation
+    // Hemisphere light for natural color variation (sky=Z+, ground=Z-)
     const hemisphereLight = new THREE.HemisphereLight(0x87ceeb, 0x8b4513, 0.3);
     scene.add(hemisphereLight);
 
     // Point light for additional fill lighting
     const pointLight = new THREE.PointLight(0xffffff, 0.5, 1000);
-    pointLight.position.set(-100, 100, 100);
+    pointLight.position.set(-100, -100, 100); // X=left, Y=back, Z=up
     scene.add(pointLight);
 
     return scene;
   }
 
-  // Create camera with proper positioning matching deltacalc.ts
+  // Create camera with proper positioning for Z-up coordinate system
   private initCamera(botRadius: number, botHeight: number): THREE.PerspectiveCamera {
     const camera = new THREE.PerspectiveCamera(
       35,
@@ -106,21 +114,28 @@ export class RenderingManager {
     );
 
     // Position camera relative to delta robot geometry
+    // In Z-up system: X=right, Y=forward/back, Z=up/down
     const d1 = botRadius * 2 + 200;
     const d2 = botHeight * 2 + 50;
     const distance = Math.max(d1, d2) * 0.8;
-    const targetY = -botHeight / 8;
+    const targetZ = botHeight / 8; // Target should be positive Z (up from base)
 
     camera.position.set(
-      distance * 0.3,  // X offset
-      targetY + distance * 0.5,  // Y well above target
-      distance * 0.8   // Z offset
+      distance * 0.5,  // X offset (right)
+      -distance * 0.8, // Y offset (back from target)
+      targetZ + distance * 0.6  // Z well above target (looking down)
     );
+
+    // Set camera up vector for Z-up coordinate system
+    camera.up.set(0, 0, 1);
+
+    // Make camera look at the target point
+    camera.lookAt(0, 0, targetZ);
 
     return camera;
   }
 
-  // Set up orbit controls matching deltacalc.ts
+  // Set up orbit controls for Z-up coordinate system
   private setupOrbitControls(botRadius: number, botHeight: number): void {
     const container = document.getElementById("graphics");
     if (!container) throw new Error("Graphics container not found");
@@ -144,9 +159,9 @@ export class RenderingManager {
     this.controlsOrbit.dampingFactor = 0.05;
     this.controlsOrbit.screenSpacePanning = false;
 
-    // Set target to center of the delta robot model
-    const targetY = -botHeight / 8;
-    this.controlsOrbit.target.set(0, targetY, 0);
+    // Set target to center of the delta robot model (Z-up coordinate system)
+    const targetZ = botHeight / 8; // Target should be positive Z (up from base)
+    this.controlsOrbit.target.set(0, 0, targetZ);
     this.controlsOrbit.update();
 
     // Add event listener with NaN detection
@@ -155,26 +170,29 @@ export class RenderingManager {
     });
   }
 
-  // Position camera relative to delta robot geometry
+  // Position camera relative to delta robot geometry (Z-up coordinate system)
   public positionCamera(botRadius: number, botHeight: number): void {
     const d1 = botRadius * 2 + 200;
     const d2 = botHeight * 2 + 50;
     const distance = Math.max(d1, d2) * 0.8;
-    const targetY = -botHeight / 8;
+    const targetZ = botHeight / 8; // Target should be positive Z (up from base)
 
     this.camera.position.set(
-      distance * 0.3,  // X offset
-      targetY + distance * 0.5,  // Y well above target
-      distance * 0.8   // Z offset
+      distance * 0.5,  // X offset (right)
+      -distance * 0.8, // Y offset (back from target)
+      targetZ + distance * 0.6  // Z well above target (looking down)
     );
 
+    // Make camera look at the target point
+    this.camera.lookAt(0, 0, targetZ);
+
     if (this.controlsOrbit) {
-      this.controlsOrbit.target.set(0, targetY, 0);
+      this.controlsOrbit.target.set(0, 0, targetZ);
       this.controlsOrbit.update();
     }
   }
 
-  // Validate and fix camera position if NaN detected
+  // Validate and fix camera position if NaN detected (Z-up coordinate system)
   private validateCameraPosition(botRadius: number, botHeight: number): void {
     const pos = this.camera.position;
     if (Number.isNaN(pos.x) || Number.isNaN(pos.y) || Number.isNaN(pos.z)) {
@@ -183,14 +201,15 @@ export class RenderingManager {
       const d1 = botRadius * 2 + 200;
       const d2 = botHeight * 2 + 50;
       const distance = Math.max(d1, d2) * 0.8;
-      const targetY = -botHeight / 8;
+      const targetZ = botHeight / 8;
       this.camera.position.set(
-        distance * 0.3,
-        targetY + distance * 0.5,
-        distance * 0.8
+        distance * 0.5,
+        -distance * 0.8,
+        targetZ + distance * 0.6
       );
+      this.camera.lookAt(0, 0, targetZ);
       if (this.controlsOrbit) {
-        this.controlsOrbit.target.set(0, targetY, 0);
+        this.controlsOrbit.target.set(0, 0, targetZ);
         this.controlsOrbit.update();
       }
     }
