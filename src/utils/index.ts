@@ -51,17 +51,17 @@ export const MathUtils = {
 
 // Geometry utilities for delta robot calculations
 export const GeometryUtils = {
-  // Calculate tower position for given tower index and radius
+  // Calculate tower position for given tower index and radius (Z-up coordinate system)
   calculateTowerPosition(towerIndex: number, radius: number): Vector3Like {
     const angle = towerIndex * (PI2 / 3) + (PI2 / 6); // 30° offset
     return {
       x: Math.sin(angle) * radius,
-      y: 0,
-      z: Math.cos(angle) * radius,
+      y: Math.cos(angle) * radius,
+      z: 0, // Z=0 for horizontal positioning in Z-up system
     };
   },
 
-  // Calculate arm position for given arm index and parameters
+  // Calculate arm position for given arm index and parameters (Z-up coordinate system)
   calculateArmPosition(
     armIndex: number,
     radius: number,
@@ -74,8 +74,8 @@ export const GeometryUtils = {
     if (centerOnly || spacing === 0) {
       return {
         x: Math.sin(baseAngle) * radius,
-        y: 0,
-        z: Math.cos(baseAngle) * radius,
+        y: Math.cos(baseAngle) * radius,
+        z: 0, // Z=0 for horizontal positioning in Z-up system
       };
     }
 
@@ -86,8 +86,8 @@ export const GeometryUtils = {
     const basePos = GeometryUtils.calculateTowerPosition(towerIndex, radius);
     return {
       x: basePos.x + Math.sin(perpAngle) * offset,
-      y: basePos.y,
-      z: basePos.z + Math.cos(perpAngle) * offset,
+      y: basePos.y + Math.cos(perpAngle) * offset,
+      z: basePos.z, // Keep Z=0 for horizontal positioning
     };
   },
 

@@ -104,18 +104,18 @@ export class DeltaGeometryManager {
     }
   }
 
-  // deltacalc.ts compatible towerPosition method
+  // deltacalc.ts compatible towerPosition method (Z-up coordinate system)
   private towerPosition(n: number, r: number, ctr: boolean = false, sp?: number): THREE.Vector3 {
     const pi2 = Math.PI * 2;
     const c = Math.floor(n / 2) * (pi2 / 3) + pi2 / 6; // angle to the tower
-    const p = new THREE.Vector3(Math.sin(c) * r, 0, Math.cos(c) * r); // the point on the perimeter
+    const p = new THREE.Vector3(Math.sin(c) * r, Math.cos(c) * r, 0); // horizontal positioning in Z-up
 
     if (!ctr) {
       if (sp === undefined) sp = this.config.rod_spacing;
       const sign = n % 2 ? -1 : 1;
       const perp = c + pi2 / 4; // the perpendicular direction
       const as = (sign * sp) / 2; // half space between arms
-      p.add(new THREE.Vector3(Math.sin(perp) * as, 0, Math.cos(perp) * as));
+      p.add(new THREE.Vector3(Math.sin(perp) * as, Math.cos(perp) * as, 0));
     }
     return p;
   }
@@ -137,7 +137,7 @@ export class DeltaGeometryManager {
     // Build plate creation handled by deltacalc.ts initBuildPlate() method
   }
 
-  // Create vertical support rods
+  // Create vertical support rods (Z-up coordinate system)
   private createVerticalRods(): void {
     // Clean up existing rods first
     this.objects.rods.forEach(rod => this.scene.remove(rod));
@@ -156,6 +156,9 @@ export class DeltaGeometryManager {
     // Use the exact same logic as original deltacalc.ts
     for (let n = 0; n < 6; n++) {
       const rod = new THREE.Mesh(geometry, material);
+
+      // Rotate cylinder to be vertical in Z-up system (align with Z-axis)
+      rod.rotation.set(Math.PI / 2, 0, 0);
 
       // Use rodPositions from deltacalc.ts sync if available, otherwise calculate
       let p: THREE.Vector3;
@@ -191,14 +194,16 @@ export class DeltaGeometryManager {
     );
     const material = new THREE.MeshLambertMaterial({ color: 0xff8844 });
 
-    // Create exactly 2 platforms like original deltacalc.ts
+    // Create exactly 2 platforms like original deltacalc.ts (Z-up coordinate system)
     for (let n = 0; n < 2; n++) {
       const platform = new THREE.Mesh(geometry, material);
       const platSign = n % 2 ? 1 : -1;
       const bh2 = this.config.bot_height / 2;
-      const y = platSign * (bh2 + 10 / 2); // Use fixed platform height
+      const z = platSign * (bh2 + 10 / 2); // Use fixed platform height - Z for vertical in Z-up system
 
-      platform.position.set(0, y, 0);
+      // Rotate cylinder to be horizontal in Z-up system (XY plane)
+      platform.rotation.set(Math.PI / 2, 0, 0);
+      platform.position.set(0, 0, z); // X=0, Y=0, Z=height in Z-up system
       platform.castShadow = true;
       platform.receiveShadow = true;
 
@@ -207,7 +212,7 @@ export class DeltaGeometryManager {
     }
   }
 
-  // Create carriages that move along the vertical rods (compatible with deltacalc.ts)
+  // Create carriages that move along the vertical rods (Z-up coordinate system)
   private createCarriages(): void {
     // Clean up existing carriages first
     this.objects.carriages.forEach(carriage => this.scene.remove(carriage));
@@ -222,10 +227,11 @@ export class DeltaGeometryManager {
       false
     );
 
+    // In Z-up system: width along X, depth along Y, height along Z
     const plateGeometry = new THREE.BoxGeometry(
-      this.config.rod_spacing,
-      this.config.carriage_height - 6,
-      this.config.rod_radius
+      this.config.rod_spacing, // width (X)
+      this.config.rod_radius,  // depth (Y)
+      this.config.carriage_height - 6 // height (Z)
     );
 
     const material = new THREE.MeshLambertMaterial({ color: 0x66ff66 });
@@ -247,6 +253,8 @@ export class DeltaGeometryManager {
         }
 
         const cylinder = new THREE.Mesh(rodGeometry, material);
+        // Rotate cylinder to be vertical in Z-up system
+        cylinder.rotation.set(Math.PI / 2, 0, 0);
         cylinder.position.set(p.x, p.y, p.z);
         cylinder.castShadow = true;
         carriageGroup.add(cylinder);
@@ -265,9 +273,10 @@ export class DeltaGeometryManager {
 
       plate.position.set(cp.x, cp.y, cp.z);
 
-      // Rotation using exact deltacalc.ts logic
+      // Rotation using exact deltacalc.ts logic - adjusted for Z-up coordinate system
+      // In Z-up system, the plate should rotate around Z-axis to align with tower orientation
       const pi2 = Math.PI * 2;
-      plate.rotation.set(0, i * (pi2 / 3) + pi2 / 6, 0);
+      plate.rotation.set(0, 0, (2-i) * (pi2 / 3) + pi2 / 6); // Rotate around Z-axis in Z-up system
       plate.castShadow = true;
       carriageGroup.add(plate);
 
@@ -375,9 +384,7 @@ export class DeltaGeometryManager {
     const material = new THREE.MeshLambertMaterial({ color: COLORS.EFFECTOR });
     const mesh = new THREE.Mesh(geometry, material);
 
-    if (shouldRotate) {
-      mesh.rotation.set(Math.PI / 2, 0, 0);
-    }
+    // No rotation needed in Z-up coordinate system - STL models should be oriented correctly
     mesh.castShadow = true;
     group.add(mesh);
 
@@ -418,7 +425,7 @@ export class DeltaGeometryManager {
 
     this.addEffectorLights(group);
 
-    group.position.set(0, -this.config.bot_height / 4, 0);
+    group.position.set(0, 0, -this.config.bot_height / 4); // Z for vertical in Z-up system
     this.scene.add(group);
 
     Object.assign(group, { onAnimate: this.createEffectorAnimationFunction() });
@@ -426,7 +433,7 @@ export class DeltaGeometryManager {
 
   private addEffectorLights(effectorGroup: THREE.Object3D): void {
     const spotTarget = new THREE.Object3D();
-    spotTarget.position.set(0, -100, 0);
+    spotTarget.position.set(0, 0, -100); // Z for vertical in Z-up system
     this.scene.add(spotTarget);
 
     const spotlights: THREE.SpotLight[] = [];
@@ -480,7 +487,7 @@ export class DeltaGeometryManager {
   }
 
   // Update arm positions based on effector position
-  public updateArmPositions(effectorPosition: THREE.Vector3, carriageYPositions: number[]): void {
+  public updateArmPositions(effectorPosition: THREE.Vector3, carriageZPositions: number[]): void {
     if (!this.objects.effector || !this.objects.arms || this.objects.arms.length !== 6) {
       return;
     }
@@ -494,7 +501,7 @@ export class DeltaGeometryManager {
       if (!armGroup) continue;
 
       const carriageIndex = Math.floor(n / 2 + 0.1);
-      const cy = carriageYPositions[carriageIndex] || 0;
+      const cz = carriageZPositions[carriageIndex] || 0;
 
       // Calculate tower end position
       const end_t = this.towerPosition(n, br, false);
@@ -502,7 +509,7 @@ export class DeltaGeometryManager {
       // Apply carriage offset to get actual ball joint position at carriage
       const carriageOffsetVector = this.calculateCarriageOffsetVector(carriageIndex);
       const carriageBallPos = end_t.clone().add(carriageOffsetVector);
-      carriageBallPos.y = cy;
+      carriageBallPos.z = cz; // Z for vertical positioning in Z-up system
 
       // Calculate effector ball joint position
       let end_e: THREE.Vector3;
@@ -513,8 +520,8 @@ export class DeltaGeometryManager {
       }
       const effectorBallPos = new THREE.Vector3(
         end_e.x + ep.x,
-        ep.y,
-        end_e.z + ep.z
+        end_e.y + ep.y, // Y coordinate (forward/back in Z-up system)
+        end_e.z + ep.z  // Z coordinate (up/down in Z-up system)
       );
 
       // Calculate the actual distance between ball joints
@@ -577,11 +584,11 @@ export class DeltaGeometryManager {
     });
   }
 
-  // Update carriage positions
+  // Update carriage positions (Z-up coordinate system)
   public updateCarriagePositions(positions: number[]): void {
-    positions.forEach((y, index) => {
+    positions.forEach((z, index) => {
       if (this.objects.carriages[index]) {
-        this.objects.carriages[index].position.y = y;
+        this.objects.carriages[index].position.z = z; // Z for vertical in Z-up system
       }
     });
   }

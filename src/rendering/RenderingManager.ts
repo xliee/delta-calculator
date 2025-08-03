@@ -84,22 +84,33 @@ export class RenderingManager {
 
     // Main directional light simulating sunlight (adjusted for Z-up)
     const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
-    directionalLight.position.set(100, -50, 100); // X=right, Y=back, Z=up
+    directionalLight.position.set(200, 200, 300); // X=right, Y=forward, Z=up - better angle for delta robot view
+    directionalLight.target.position.set(0, 0, 0); // Target the center of the scene
     directionalLight.castShadow = true;
     directionalLight.shadow.mapSize.width = 2048;
     directionalLight.shadow.mapSize.height = 2048;
     directionalLight.shadow.camera.near = 0.5;
     directionalLight.shadow.camera.far = 500;
+    directionalLight.shadow.camera.left = -200;
+    directionalLight.shadow.camera.right = 200;
+    directionalLight.shadow.camera.top = 200;
+    directionalLight.shadow.camera.bottom = -200;
     scene.add(directionalLight);
+    scene.add(directionalLight.target);
 
     // Hemisphere light for natural color variation (sky=Z+, ground=Z-)
     const hemisphereLight = new THREE.HemisphereLight(0x87ceeb, 0x8b4513, 0.3);
     scene.add(hemisphereLight);
 
-    // Point light for additional fill lighting
-    const pointLight = new THREE.PointLight(0xffffff, 0.5, 1000);
-    pointLight.position.set(-100, -100, 100); // X=left, Y=back, Z=up
+    // Point light for additional fill lighting from opposite side
+    const pointLight = new THREE.PointLight(0xffffff, 0.4, 1000);
+    pointLight.position.set(-150, -150, 200); // X=left, Y=back, Z=up
     scene.add(pointLight);
+
+    // Additional fill light from front for better carriage visibility  
+    const frontLight = new THREE.PointLight(0xffffff, 0.3, 800);
+    frontLight.position.set(0, 250, 150); // Front of the machine, elevated
+    scene.add(frontLight);
 
     return scene;
   }

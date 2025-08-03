@@ -218,16 +218,16 @@ export class DeltaCalculations {
         z: effectorPosition.z + effectorNubCenter.z,
       };
 
-      // Calculate carriage Y position using inverse kinematics
+      // Calculate carriage Z position using inverse kinematics (Z-up coordinate system)
       const deltaX = towerPos.x - nubWorldPos.x;
-      const deltaZ = towerPos.z - nubWorldPos.z;
-      const horizontalDistanceSquared = deltaX ** 2 + deltaZ ** 2;
+      const deltaY = towerPos.y - nubWorldPos.y; // Y is forward/back in Z-up system
+      const horizontalDistanceSquared = deltaX ** 2 + deltaY ** 2;
 
-      // Solve for Y using Pythagorean theorem
+      // Solve for Z using Pythagorean theorem (Z is vertical in Z-up system)
       const verticalComponent = Math.sqrt(armLengthSquared - horizontalDistanceSquared);
-      const carriageY = nubWorldPos.y + verticalComponent;
+      const carriageZ = nubWorldPos.z + verticalComponent;
 
-      carriagePositions.push(carriageY);
+      carriagePositions.push(carriageZ);
     }
 
     return carriagePositions;
@@ -237,24 +237,24 @@ export class DeltaCalculations {
   public validatePosition(position: Vector3Like): KinematicResult {
     const carriagePositions = this.calculateCarriagePositions(position);
 
-    // Check if all carriage positions are valid
+    // Check if all carriage positions are valid (Z-up coordinate system)
     const halfHeight = this.config.bot_height / 2;
-    const maxCarriageY = halfHeight - this.config.carriage_height / 2;
-    const minCarriageY = -halfHeight + this.config.carriage_height / 2;
+    const maxCarriageZ = halfHeight - this.config.carriage_height / 2;
+    const minCarriageZ = -halfHeight + this.config.carriage_height / 2;
 
-    const isReachable = carriagePositions.every(y =>
-      y >= minCarriageY && y <= maxCarriageY && !Number.isNaN(y)
+    const isReachable = carriagePositions.every(z =>
+      z >= minCarriageZ && z <= maxCarriageZ && !Number.isNaN(z)
     );
 
-    // Calculate arm angles for analysis
-    const armAngles = carriagePositions.map((carriageY, i) => {
+    // Calculate arm angles for analysis (Z-up coordinate system)
+    const armAngles = carriagePositions.map((carriageZ, i) => {
       const towerPos = GeometryUtils.calculateTowerPosition(i, this.config.bot_radius);
-      const deltaY = carriageY - position.y;
+      const deltaZ = carriageZ - position.z; // Z is vertical in Z-up system
       const horizontalDistance = MathUtils.distance2D(
-        towerPos.x, towerPos.z,
-        position.x, position.z
+        towerPos.x, towerPos.y, // X and Y are horizontal in Z-up system
+        position.x, position.y
       );
-      return Math.atan2(deltaY, horizontalDistance);
+      return Math.atan2(deltaZ, horizontalDistance);
     });
 
     return {
@@ -390,22 +390,22 @@ export class DeltaCalculations {
     const constraintRadius = buildVolume.maxPrintRadius;
 
     // Apply horizontal constraints
-    const horizontalDistance = MathUtils.distance2D(position.x, position.z, 0, 0);
+    const horizontalDistance = MathUtils.distance2D(position.x, position.y, 0, 0); // X,Y horizontal in Z-up
     let constrainedX = position.x;
-    let constrainedZ = position.z;
+    let constrainedY = position.y;
 
     if (horizontalDistance > constraintRadius) {
-      const angle = Math.atan2(position.x, position.z);
+      const angle = Math.atan2(position.x, position.y);
       constrainedX = Math.sin(angle) * constraintRadius;
-      constrainedZ = Math.cos(angle) * constraintRadius;
+      constrainedY = Math.cos(angle) * constraintRadius;
     }
 
-    // Apply vertical constraints
+    // Apply vertical constraints (Z-up coordinate system)
     const halfHeight = this.config.bot_height / 2;
-    const maxY = halfHeight - this.config.arm_length - this.config.carriage_height / 2;
-    const minY = -halfHeight + DEFAULT_DELTA_CONFIG.EFFECTOR_HEIGHT / 2;
+    const maxZ = halfHeight - this.config.arm_length - this.config.carriage_height / 2;
+    const minZ = -halfHeight + DEFAULT_DELTA_CONFIG.EFFECTOR_HEIGHT / 2;
 
-    const constrainedY = MathUtils.clamp(position.y, minY, maxY);
+    const constrainedZ = MathUtils.clamp(position.z, minZ, maxZ);
 
     // Apply carriage position constraints
     const constrainedPosition = { x: constrainedX, y: constrainedY, z: constrainedZ };
@@ -417,63 +417,63 @@ export class DeltaCalculations {
   // Apply carriage-specific constraints to prevent carriages from going below build plate or other limits
   private applyCarriageConstraints(position: Vector3Like): Vector3Like {
     // Calculate current carriage positions for this effector position
-    const carriageYPositions = this.calculateCarriagePositions(position);
+    const carriageZPositions = this.calculateCarriagePositions(position);
     const halfHeight = this.config.bot_height / 2;
 
-    // Define minimum allowed carriage Y positions (using same coordinate system as effector)
+    // Define minimum allowed carriage Z positions (Z-up coordinate system)
     // Build plate is at: -halfHeight + PLATFORM_HEIGHT
     const buildPlateLevel = -halfHeight + DEFAULT_DELTA_CONFIG.PLATFORM_HEIGHT;
     const carriageMinAboveBuildPlate = buildPlateLevel + 10; // 10mm clearance above build plate
-    const frameMinY = -halfHeight + 25; // 25mm from bottom of frame for mechanical clearance
+    const frameMinZ = -halfHeight + 25; // 25mm from bottom of frame for mechanical clearance
 
-    // The minimum allowed carriage Y position (most restrictive)
-    const minAllowedCarriageY = Math.max(carriageMinAboveBuildPlate, frameMinY);
+    // The minimum allowed carriage Z position (most restrictive)
+    const minAllowedCarriageZ = Math.max(carriageMinAboveBuildPlate, frameMinZ);
 
-    // Find the most problematic carriage (lowest Y position)
-    const lowestCarriageY = Math.min(...carriageYPositions);
+    // Find the most problematic carriage (lowest Z position)
+    const lowestCarriageZ = Math.min(...carriageZPositions);
 
     // If the lowest carriage is above the minimum, no constraint needed
-    if (lowestCarriageY >= minAllowedCarriageY) {
+    if (lowestCarriageZ >= minAllowedCarriageZ) {
       return position; // No constraint violation
     }
 
     // Calculate how much we need to raise the effector to fix the violation
-    const requiredCarriageYIncrease = minAllowedCarriageY - lowestCarriageY;
+    const requiredCarriageZIncrease = minAllowedCarriageZ - lowestCarriageZ;
 
-    // For delta kinematics: when effector moves up by ΔY, carriage also moves up by approximately ΔY
+    // For delta kinematics: when effector moves up by ΔZ, carriage also moves up by approximately ΔZ
     // (this is a simplification but works well for small adjustments)
-    const constrainedEffectorY = position.y + requiredCarriageYIncrease;
+    const constrainedEffectorZ = position.z + requiredCarriageZIncrease;
 
     // Return the constrained position
     return {
       x: position.x,
-      y: constrainedEffectorY,
-      z: position.z,
+      y: position.y, // Y remains unchanged (forward/back in Z-up system)
+      z: constrainedEffectorZ, // Z adjusted for carriage constraints
     };
   }
-  // Debug method to check carriage constraints (for testing)
+  // Debug method to check carriage constraints (for testing) - Z-up coordinate system
   public debugCarriageConstraints(position: Vector3Like): {
     original: Vector3Like;
     constrained: Vector3Like;
-    carriageYPositions: number[];
-    constrainedCarriageYPositions: number[];
+    carriageZPositions: number[];
+    constrainedCarriageZPositions: number[];
     buildPlateLevel: number;
-    minAllowedCarriageY: number;
+    minAllowedCarriageZ: number;
     constraintApplied: boolean;
     violations: { carriage: number; violation: number }[];
   } {
     const originalPosition = { ...position };
-    const carriageYPositions = this.calculateCarriagePositions(position);
+    const carriageZPositions = this.calculateCarriagePositions(position);
     const halfHeight = this.config.bot_height / 2;
 
     // Use same logic as applyCarriageConstraints
     const buildPlateLevel = -halfHeight + DEFAULT_DELTA_CONFIG.PLATFORM_HEIGHT;
     const carriageMinAboveBuildPlate = buildPlateLevel + 10;
-    const frameMinY = -halfHeight + 25;
-    const minAllowedCarriageY = Math.max(carriageMinAboveBuildPlate, frameMinY);
+    const frameMinZ = -halfHeight + 25;
+    const minAllowedCarriageZ = Math.max(carriageMinAboveBuildPlate, frameMinZ);
 
     const constrainedPosition = this.constrainPosition(position);
-    const constrainedCarriageYPositions = this.calculateCarriagePositions(constrainedPosition);
+    const constrainedCarriageZPositions = this.calculateCarriagePositions(constrainedPosition);
 
     const constraintApplied = (
       Math.abs(constrainedPosition.x - originalPosition.x) > 0.001 ||
@@ -484,7 +484,7 @@ export class DeltaCalculations {
     // Check which carriages were violating constraints
     const violations: { carriage: number; violation: number }[] = [];
     for (let i = 0; i < 3; i++) {
-      const violation = minAllowedCarriageY - carriageYPositions[i];
+      const violation = minAllowedCarriageZ - carriageZPositions[i];
       if (violation > 0) {
         violations.push({ carriage: i, violation });
       }
@@ -493,10 +493,10 @@ export class DeltaCalculations {
     return {
       original: originalPosition,
       constrained: constrainedPosition,
-      carriageYPositions,
-      constrainedCarriageYPositions,
+      carriageZPositions,
+      constrainedCarriageZPositions,
       buildPlateLevel,
-      minAllowedCarriageY,
+      minAllowedCarriageZ,
       constraintApplied,
       violations
     };

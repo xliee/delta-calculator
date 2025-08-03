@@ -24,7 +24,8 @@ export class STLModelManager {
   private scene: THREE.Scene;
   private loadedModels: Map<string, LoadedModel> = new Map();
   private loader: STLLoader;
-  private buildPlateY: number = 0;
+  // Build plate coordinate properties (Z-up coordinate system)
+  private buildPlateZ: number = 0; // Z for vertical in Z-up system
 
   // UI Elements
   private modelListContainer: HTMLElement | null = null;
@@ -56,10 +57,10 @@ export class STLModelManager {
     // { name: 'Test Cube', filename: 'calibration_cube.stl', path: 'models/calibration/' }
   ];
 
-  constructor(scene: THREE.Scene, buildPlateY: number = 0) {
+  constructor(scene: THREE.Scene, buildPlateZ: number = 0) {
     this.scene = scene;
     this.loader = new STLLoader();
-    this.buildPlateY = buildPlateY;
+    this.buildPlateZ = buildPlateZ;
     this.initializeUI();
     this.setupCallbacks();
   }
@@ -366,15 +367,15 @@ export class STLModelManager {
   }
 
   /**
-   * Update the build plate Y position (printer's Z=0 level)
+   * Update the build plate Z position (printer's Z=0 level in Z-up coordinate system)
    */
-  public updateBuildPlateY(buildPlateY: number): void {
-    this.buildPlateY = buildPlateY;
+  public updateBuildPlateZ(buildPlateZ: number): void {
+    this.buildPlateZ = buildPlateZ;
     
     // Update existing models to new build plate level
     this.loadedModels.forEach(model => {
-      model.mesh.position.y = buildPlateY;
-      model.originalPosition.y = buildPlateY;
+      model.mesh.position.z = buildPlateZ; // Z for vertical in Z-up system
+      model.originalPosition.z = buildPlateZ;
     });
   }
 
@@ -478,10 +479,10 @@ export class STLModelManager {
     // Create mesh
     const mesh = new THREE.Mesh(geometry, this.defaultMaterial.clone());
     
-    // Position at printer coordinate origin (0,0,0)
-    // X,Z = 0,0 (center of build plate)
-    // Y = this.buildPlateY (build surface level)
-    mesh.position.set(0, this.buildPlateY, 0);
+    // Position at printer coordinate origin (0,0,0) in Z-up system
+    // X,Y = 0,0 (center of build plate in XY plane)
+    // Z = this.buildPlateZ (build surface level - vertical in Z-up system)
+    mesh.position.set(0, 0, this.buildPlateZ);
     mesh.castShadow = true;
     mesh.receiveShadow = true;
 

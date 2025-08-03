@@ -120,7 +120,7 @@ export class DeltabotApp {
   public rodpos: THREE.Vector3[] = [];
   public platform: THREE.Mesh[] = [];
   public carriage: THREE.Object3D[] = [];
-  public carriageY: number[] = [0, 0, 0];
+  public carriageZ: number[] = [0, 0, 0];
   public effector: THREE.Object3D | null = null;
 
   // Input state
@@ -418,7 +418,7 @@ export class DeltabotApp {
   public reorientCamera(): void {
     this.renderingManager.positionCamera(this.bot_radius, this.bot_height);
     if (this.cube !== undefined && this.cube != null)
-      this.cube.position.set(0, -this.bh2! + 60, 0);
+      this.cube.position.set(0, 0, -this.bh2! + 60); // Z for vertical in Z-up system
   }
 
   public rebuildScene(): void {
@@ -485,8 +485,8 @@ export class DeltabotApp {
     // Calculate carriage positions using DeltaCalculations
     const carriagePositions = this.deltaCalculations.calculateCarriagePositions(effectorPosition);
 
-    // Store carriage Y positions
-    this.carriageY = carriagePositions;
+    // Store carriage Z positions
+    this.carriageZ = carriagePositions;
 
     // Update geometry manager with new carriage and arm positions
     if (this.geometryManager) {
@@ -583,8 +583,8 @@ export class DeltabotApp {
   private setupEffectorProperties(): void {
     if (!this.effector) return;
 
-    // Set initial position
-    this.effector.position.set(0, -this.bot_height / 4, 0);
+    // Set initial position (Z-up coordinate system)
+    this.effector.position.set(0, 0, -this.bot_height / 4); // Z for vertical in Z-up system
 
     // Add velocity properties needed for animation
     (this.effector as any).vx = 0;
@@ -614,7 +614,7 @@ export class DeltabotApp {
       this.scene.remove(this.physical_bed);
     }
 
-    const baseY = -this.bh2! + this.platform_height + 1;
+    const baseZ = -this.bh2! + this.platform_height + 1; // Z for vertical in Z-up system
 
     // Create calculated printable area (gray) - this is automatically calculated
     // Get the actual constraint radius from DeltaCalculations
@@ -643,11 +643,13 @@ export class DeltabotApp {
     });
 
     this.build_plate = new THREE.Mesh(printableGeometry, printableMaterial);
-    this.build_plate.position.set(0, baseY + 1, 0);
+    // Rotate cylinder to be horizontal in Z-up system (XY plane)
+    this.build_plate.rotation.set(Math.PI / 2, 0, 0);
+    this.build_plate.position.set(0, 0, baseZ + 1); // Z for vertical positioning
     this.scene.add(this.build_plate);
 
-    // Update STL model manager with correct build plate Y position
-    this.stlModelManager.updateBuildPlateY(baseY + 1);
+    // Update STL model manager with correct build plate Z position
+    this.stlModelManager.updateBuildPlateZ(baseZ + 1);
 
     // Create physical bed (green) - user configurable, can be hidden
     if (this.show_physical_bed) {
@@ -670,7 +672,9 @@ export class DeltabotApp {
         physicalBedGeometry,
         physicalBedMaterial
       );
-      this.physical_bed.position.set(0, baseY, 0); // Below the calculated area
+      // Rotate cylinder to be horizontal in Z-up system (XY plane)
+      this.physical_bed.rotation.set(Math.PI / 2, 0, 0);
+      this.physical_bed.position.set(0, 0, baseZ); // Z for vertical positioning
       this.scene.add(this.physical_bed);
     }
 
@@ -775,7 +779,7 @@ export class DeltabotApp {
     if (!this.effector) return;
 
     // Store original position before velocity application
-    const originalY = this.effector.position.y;
+    const originalZ = this.effector.position.z; // Z for vertical in Z-up system
 
     // First apply velocity movement (like the parent onAnimate does)
     if ((this.effector as any).vx !== undefined) {
@@ -789,9 +793,9 @@ export class DeltabotApp {
       this.effector.position
     );
 
-    // Check if Y position was constrained (hit vertical limits)
+    // Check if Z position was constrained (hit vertical limits)
     const hitVerticalLimit =
-      Math.abs(constrainedPosition.y - this.effector.position.y) > 0.001;
+      Math.abs(constrainedPosition.z - this.effector.position.z) > 0.001;
 
     // Update effector position with constraints
     this.effector.position.set(
@@ -802,7 +806,7 @@ export class DeltabotApp {
 
     // Stop velocity if we hit vertical limits
     if (hitVerticalLimit) {
-      (this.effector as any).vy = 0;
+      (this.effector as any).vz = 0; // vz for vertical velocity in Z-up system
     }
 
     this.updateCarriagesFromEffector();
@@ -835,9 +839,9 @@ export class DeltabotApp {
       hs = this.homeState,
       zeroxy = hs > 1,
       dx = zeroxy ? 0 : p.x,
-      dy = zeroxy ? 0 : p.z,
+      dy = zeroxy ? 0 : p.y, // Y for forward/back in Z-up system
       dz = hs == 3 ? this.effector_zero_z! : this.effector_endstop_z!,
-      dest = new THREE.Vector3(dx, dz, dy),
+      dest = new THREE.Vector3(dx, dy, dz), // X, Y, Z where Z is vertical
       pc = p
         .clone()
         .sub(dest)
@@ -845,9 +849,9 @@ export class DeltabotApp {
     // console.log(pc.x);
 
     if (
-      (hs == 1 && pc.y > -m && pc.y < m) ||
-      (hs == 2 && pc.x > -m && pc.x < m && pc.z > -m && pc.z < m) ||
-      (hs == 3 && Math.floor(p.y) == this.effector_zero_z!)
+      (hs == 1 && pc.z > -m && pc.z < m) || // Z for vertical movement
+      (hs == 2 && pc.x > -m && pc.x < m && pc.y > -m && pc.y < m) || // X,Y for horizontal
+      (hs == 3 && Math.floor(p.z) == this.effector_zero_z!) // Z for vertical position
     ) {
       if (++hs > 3) {
         hs = 0;
@@ -888,7 +892,8 @@ export class DeltabotApp {
   }
 
   public addCubeToScene(s: THREE.Scene): THREE.Mesh {
-    var g = new THREE.BoxGeometry(50, 100, 50),
+    // In Z-up system, height should be along Z-axis
+    var g = new THREE.BoxGeometry(50, 50, 100), // X, Y, Z where Z is height
       // var g = new THREE.CylinderGeometry(25, 50, 100, 10, 10, false),
       m = new THREE.MeshLambertMaterial({
         color: 0xffffff,
@@ -988,20 +993,23 @@ export class DeltabotApp {
         (e as any).vz = 0;
       }
 
+      // Up/Down arrows control Y movement (forward/back in Z-up system)
       if (u || d) {
-        if (u) (e as any).vz -= speed;
-        if (d) (e as any).vz += speed;
-      } else (e as any).vz *= damp;
+        if (u) (e as any).vy += speed; // Forward
+        if (d) (e as any).vy -= speed; // Back
+      } else (e as any).vy *= damp;
 
+      // Left/Right arrows control X movement (left/right - unchanged)
       if (l || r) {
         if (l) (e as any).vx -= speed;
         if (r) (e as any).vx += speed;
       } else (e as any).vx *= damp;
 
+      // Shift+Up/Down controls Z movement (up/down in Z-up system)
       if (t || b) {
-        if (t) (e as any).vy += speed;
-        if (b) (e as any).vy -= speed;
-      } else (e as any).vy *= damp;
+        if (t) (e as any).vz += speed; // Up
+        if (b) (e as any).vz -= speed; // Down
+      } else (e as any).vz *= damp;
 
       // Simple one-time log when arrow keys are pressed
       if (

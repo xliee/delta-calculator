@@ -302,12 +302,12 @@ export class StatsManager {
     if (!this.isVisible || !this.effectorPosElement) return;
 
     // Convert from Three.js coordinates to delta robot coordinates
-    // Three.js: X=left/right, Y=up/down (vertical), Z=forward/back
+    // Three.js Z-up: X=left/right, Y=forward/back, Z=up/down (vertical)
     // Delta Robot User Display: X=left/right, Y=forward/back, Z=up/down (vertical)
-    // Mapping: X=X, Y=Z_threejs, Z=Y_threejs
+    // Mapping: X=X, Y=Y, Z=Z (direct mapping in Z-up system)
     const deltaX = position.x;
-    const deltaY = position.z; // Three.js Z becomes delta Y
-    const deltaZ = bedLevelZ !== undefined ? position.y - bedLevelZ : position.y; // Three.js Y becomes delta Z
+    const deltaY = position.y; // Three.js Y maps to delta Y
+    const deltaZ = bedLevelZ !== undefined ? position.z - bedLevelZ : position.z; // Three.js Z maps to delta Z
 
     this.effectorPosElement.textContent =
       `X: ${deltaX.toFixed(1)}, Y: ${deltaY.toFixed(1)}, Z: ${deltaZ.toFixed(1)}`;
@@ -340,8 +340,8 @@ export class StatsManager {
   public updateCarriagePositions(positions: number[], bedLevelZ?: number): void {
     if (!this.isVisible || !this.carriagePositionsElement) return;
 
-    // Convert carriage Y positions (Three.js) to Z positions (delta robot display)
-    // Apply the same coordinate system as effector: Y_threejs - bedLevelZ = Z_delta (build plate at Z=0)
+    // Convert carriage Z positions (Three.js Z-up) to delta robot display Z positions
+    // Apply the same coordinate system as effector: Z_threejs - bedLevelZ = Z_delta (build plate at Z=0)
     const convertedPositions = positions.map(pos => {
       return bedLevelZ !== undefined ? pos - bedLevelZ : pos;
     });
