@@ -54,8 +54,9 @@ npm run preview
 - **Sliders**: Real-time parameter adjustment
 - **Keyboard**: Arrow keys for effector movement
 
-## License
+## Copyright
 
+Copyright (c) 2025 Xliee.  
 This project is licensed under the GNU General Public License v3.0 - see the [LICENSE](LICENSE) file for details.
 
 ## Acknowledgments
